@@ -1,0 +1,12 @@
+[project]
+name = "Clinical Evidence Knowledge Base"
+version = "0.1.0"
+
+[git]
+sync = true
+
+[site]
+domain = "localhost:8080"
+siteName = "Clinical Evidence Knowledge Base"
+adminEmail = ""
+oauthAllowedDomains = ["example.com"]

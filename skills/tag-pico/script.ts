@@ -1,0 +1,93 @@
+/**
+ * tag-pico — classify clinical text by PICO category.
+ *
+ * mark.assist with motivation 'linking' and four entity types
+ * (PICO_Patient / PICO_Intervention / PICO_Comparison / PICO_Outcome).
+ *
+ * NOTE: This is the interim shape until a registered `clinical-pico` tag
+ * schema lands in `@semiont/ontology`. Once it does, this skill migrates to
+ * mark.assist(..., 'tagging', { schemaId: 'clinical-pico', categories: [...] })
+ * and the entity-type variants retire. The query shape is the same; only
+ * registration differs.
+ *
+ * Usage: tsx skills/tag-pico/script.ts [<resourceId>] [--interactive]
+ */
+
+import { SemiontClient, entityType, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
+import { confirm, close as closeInteractive } from '../../src/interactive.js';
+
+const PICO_ENTITY_TYPES = [
+  entityType('PICO_Patient'),
+  entityType('PICO_Intervention'),
+  entityType('PICO_Comparison'),
+  entityType('PICO_Outcome'),
+];
+
+function getMediaType(r: any): string | undefined {
+  const reps = Array.isArray(r.representations)
+    ? r.representations
+    : r.representations
+      ? [r.representations]
+      : [];
+  return reps[0]?.mediaType;
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+  const explicitResourceId = args[0];
+
+  const semiont = await SemiontClient.signInHttp({
+    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+    email: process.env.SEMIONT_USER_EMAIL!,
+    password: process.env.SEMIONT_USER_PASSWORD!,
+  });
+
+  let targets: ResourceId[];
+  if (explicitResourceId) {
+    targets = [ridBrand(explicitResourceId)];
+  } else {
+    const all = await semiont.browse.resources({ limit: 1000 });
+    targets = all
+      .filter((r) => {
+        const mt = getMediaType(r);
+        return mt === 'text/markdown' || mt === 'text/plain';
+      })
+      .map((r) => ridBrand(r['@id']));
+  }
+
+  if (targets.length === 0) {
+    console.log('No markdown corpus resources found. Run skills/ingest-corpus/script.ts first.');
+    semiont.dispose();
+    closeInteractive();
+    return;
+  }
+
+  console.log(`Will run mark.assist (motivation: linking, PICO entity types) against ${targets.length} resource(s).`);
+
+  const proceed = await confirm('Proceed?', true);
+  if (!proceed) {
+    console.log('Aborted.');
+    semiont.dispose();
+    closeInteractive();
+    return;
+  }
+
+  let totalCreated = 0;
+  for (const rId of targets) {
+    const progress = await semiont.mark.assist(rId, 'linking', {
+      entityTypes: PICO_ENTITY_TYPES,
+    });
+    const n = progress.progress?.createdCount ?? 0;
+    totalCreated += n;
+    console.log(`  ${rId}: ${n} new PICO annotations`);
+  }
+
+  console.log(`\nDone. Created ${totalCreated} PICO annotations.`);
+  semiont.dispose();
+  closeInteractive();
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
