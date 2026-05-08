@@ -34,11 +34,11 @@ This repo ships eleven skills that build a layered clinical-evidence KB on top o
 
 Explore this dataset using [Semiont](https://github.com/The-AI-Alliance/semiont), an open-source knowledge base platform for annotation and knowledge extraction.
 
-This repo follows the same layout and startup flow as [`semiont-template-kb`](https://github.com/The-AI-Alliance/semiont-template-kb). See its README for full setup instructions:
+This repo follows the same layout and startup flow as [`semiont-template-kb`](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb). See its README for full setup instructions:
 
-- [Quick Start: Local](https://github.com/The-AI-Alliance/semiont-template-kb#quick-start-local) — run the backend stack on your machine via `.semiont/scripts/start.sh`
-- [Quick Start: Codespaces](https://github.com/The-AI-Alliance/semiont-template-kb#quick-start-codespaces) — launch a preconfigured backend in the cloud
-- [Inference Configuration](https://github.com/The-AI-Alliance/semiont-template-kb#inference-configuration) — Ollama (local) vs. Anthropic (cloud) configs
+- [Quick Start: Local](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb#quick-start-local) — run the backend stack on your machine via `.semiont/scripts/start.sh`
+- [Quick Start: Codespaces](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb#quick-start-codespaces) — launch a preconfigured backend in the cloud
+- [Inference Configuration](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb#inference-configuration) — Ollama (local) vs. Anthropic (cloud) configs
 
 ### Open in Codespaces
 
@@ -59,7 +59,7 @@ gh codespace ports forward 4000:4000
 gh codespace ssh -- cat .devcontainer/admin.json
 ```
 
-The credentials let you log in via the Semiont browser — see [Quick Start: Codespaces](https://github.com/The-AI-Alliance/semiont-template-kb#quick-start-codespaces) on the template-kb README for the full browser-side flow.
+The credentials let you log in via the Semiont browser — see [Quick Start: Codespaces](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb#quick-start-codespaces) on the template-kb README for the full browser-side flow.
 
 ## License
 
