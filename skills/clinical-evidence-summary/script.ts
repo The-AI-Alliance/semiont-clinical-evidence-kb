@@ -74,6 +74,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const drugRes = drugResources[0];
+  if (!drugRes) {
+    console.error('No canonical Drug resource available.');
+    semiont.dispose();
+    closeReadline();
+    process.exit(1);
+  }
   console.log(`Using canonical Drug: ${(drugRes as any).name} (${drugRes['@id']})`);
 
   // Find Trials whose graph edges include this Drug
@@ -87,11 +93,12 @@ async function main(): Promise<void> {
     const tId = ridBrand(t['@id']);
     const annos = await semiont.browse.annotations(tId);
     const linkedSources = new Set(
-      annos.flatMap((a: any) =>
-        (a.body ?? [])
+      annos.flatMap((a: any) => {
+        const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
+        return bodies
           .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
-          .map((b: any) => b.source as string),
-      ),
+          .map((b: any) => b.source as string);
+      }),
     );
     if (linkedSources.has(drugRes['@id'])) matchingTrials.push(t);
   }
@@ -111,7 +118,8 @@ async function main(): Promise<void> {
     const tId = ridBrand(t['@id']);
     const annos = await semiont.browse.annotations(tId);
     for (const a of annos) {
-      const targets = (a.body ?? []).filter(
+      const aBodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
+      const targets = aBodies.filter(
         (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
       );
       for (const tgt of targets) {
@@ -141,6 +149,7 @@ async function main(): Promise<void> {
   const gathered: GatheredContext[] = [];
   for (const ref of outcomeRefs.slice(0, MAX_GATHER)) {
     const g = await semiont.gather.annotation(ref.rId, ref.annId, { contextWindow: 1500 });
+    if (!('response' in g)) continue;
     gathered.push(g.response as GatheredContext);
   }
 
@@ -148,6 +157,12 @@ async function main(): Promise<void> {
   // the others are referenced in the body via prepend.
   const seedRef = outcomeRefs[0];
   const seedGather = gathered[0];
+  if (!seedRef || !seedGather) {
+    console.error('No outcome contexts gathered.');
+    semiont.dispose();
+    closeReadline();
+    process.exit(1);
+  }
 
   const supplementaryContext = gathered
     .slice(1)
@@ -167,8 +182,7 @@ async function main(): Promise<void> {
     storageUri: `file://generated/evidence-summary-${slugify(drug)}-${slugify(condition)}.md`,
     context: seedGather,
     entityTypes: ['ClinicalEvidenceSummary', 'Aggregate'],
-    instructions: SUMMARY_INSTRUCTIONS,
-    prependBody: prepend,
+    prompt: `${SUMMARY_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
   });
 
   if (yieldEvent.kind !== 'complete') {

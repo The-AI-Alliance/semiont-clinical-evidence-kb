@@ -27,6 +27,7 @@ export function parseEffectSizes(text: string): EffectSize[] {
   METRIC_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = METRIC_RE.exec(text)) !== null) {
+    if (!m[1] || !m[2]) continue;
     const metric = m[1] as EffectMetric;
     const point = parseFloat(m[2]);
     const lowerStr = m[3];
@@ -38,7 +39,7 @@ export function parseEffectSizes(text: string): EffectSize[] {
     // Look for a p-value in the next ~80 chars.
     const tail = text.slice(m.index, m.index + 200);
     const pMatch = tail.match(P_RE);
-    const pValue = pMatch ? parseFloat(pMatch[2]) : undefined;
+    const pValue = pMatch && pMatch[2] ? parseFloat(pMatch[2]) : undefined;
 
     out.push({ metric, point, ci, pValue, raw: m[0] });
   }

@@ -138,6 +138,12 @@ async function main(): Promise<void> {
   }
 
   const gather = await semiont.gather.annotation(seedTrialId, seedAnno.id, { contextWindow: 2000 });
+  if (!('response' in gather)) {
+    console.error('gather.annotation did not return a Complete event');
+    semiont.dispose();
+    closeReadline();
+    process.exit(1);
+  }
   const context = gather.response as GatheredContext;
 
   const trialList = (label: string, ids: ResourceId[]): string => {
@@ -163,8 +169,7 @@ async function main(): Promise<void> {
     storageUri: `file://generated/comparison-${slugify(drugA)}-vs-${slugify(drugB)}.md`,
     context,
     entityTypes: ['DrugComparison', 'Aggregate'],
-    instructions: COMPARISON_INSTRUCTIONS,
-    prependBody: prepend,
+    prompt: `${COMPARISON_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
   });
 
   if (yieldEvent.kind !== 'complete') {

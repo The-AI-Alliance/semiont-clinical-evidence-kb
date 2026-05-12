@@ -64,11 +64,22 @@ async function main(): Promise<void> {
     const annotations = await semiont.browse.annotations(rId);
     for (const ann of annotations) {
       if (ann.motivation !== 'linking') continue;
-      const tags = (ann.body ?? [])
+      const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
+      const tags = bodies
         .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
         .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
       if (!tags.includes('Outcome')) continue;
-      const exact = (ann.target?.selector?.exact ?? '') as string;
+      const target = ann.target;
+      const selectors =
+        typeof target === 'string' || !target.selector
+          ? []
+          : Array.isArray(target.selector)
+            ? target.selector
+            : [target.selector];
+      let exact = '';
+      for (const s of selectors) {
+        if (s.type === 'TextQuoteSelector') { exact = s.exact; break; }
+      }
       if (exact.length < MIN_OUTCOME_LENGTH) continue;
       outcomes.push({ rId, annId: ann.id, text: exact });
     }
@@ -92,6 +103,7 @@ async function main(): Promise<void> {
   let synthesized = 0;
   for (const o of outcomes) {
     const gather = await semiont.gather.annotation(o.rId, o.annId, { contextWindow: 1500 });
+    if (!('response' in gather)) continue;
     const context = gather.response as GatheredContext;
 
     // Parse any effect sizes visible in the gathered text — embed as frontmatter.
@@ -107,8 +119,9 @@ async function main(): Promise<void> {
       storageUri: `file://generated/outcome-${slugify(o.text)}.md`,
       context,
       entityTypes: ['Outcome', 'Aggregate'],
-      instructions: OUTCOME_INSTRUCTIONS,
-      prependBody: frontmatter,
+      prompt: frontmatter
+        ? `${OUTCOME_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${frontmatter}`
+        : OUTCOME_INSTRUCTIONS,
     });
 
     if (yieldEvent.kind !== 'complete') continue;

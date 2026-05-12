@@ -70,9 +70,16 @@ async function main(): Promise<void> {
 
     // Find an NCT in any annotation on this study
     const annotations = await semiont.browse.annotations(studyId);
-    const nctMatch = annotations
-      .map((ann) => (ann.target?.selector?.exact ?? '') as string)
-      .find((t) => NCT_RE.test(t));
+    const annTexts: string[] = [];
+    for (const ann of annotations) {
+      const target = ann.target;
+      if (typeof target === 'string' || !target.selector) continue;
+      const selectors = Array.isArray(target.selector) ? target.selector : [target.selector];
+      for (const s of selectors) {
+        if (s.type === 'TextQuoteSelector') { annTexts.push(s.exact); break; }
+      }
+    }
+    const nctMatch = annTexts.find((t) => NCT_RE.test(t));
     const nctId = nctMatch ? (nctMatch.match(NCT_RE)?.[0] ?? null) : null;
 
     // Synthesize canonical Trial resource
@@ -96,7 +103,8 @@ async function main(): Promise<void> {
     const seen = new Set<string>();
     let edges = 0;
     for (const ann of annotations) {
-      const bodies = (ann.body ?? []).filter(
+      const allBodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
+      const bodies = allBodies.filter(
         (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
       );
       for (const b of bodies) {
@@ -115,11 +123,14 @@ async function main(): Promise<void> {
         if (!isCanonical) continue;
 
         // Add an edge by binding the Trial body to a description of the
-        // relationship (we use a marker annotation on the Trial resource).
-        // For a graph edge, we create a `bind.body` annotation on the Trial
-        // pointing at the target.
+        // relationship. Resource-level relationship edges have no span, so
+        // we attach a FragmentSelector with an empty value to satisfy the
+        // SDK schema (selector is required).
         await semiont.mark.annotation({
-          target: { source: trialId },
+          target: {
+            source: trialId,
+            selector: { type: 'FragmentSelector', value: '' },
+          },
           motivation: 'linking',
           body: [
             {
@@ -130,9 +141,9 @@ async function main(): Promise<void> {
             {
               type: 'TextualBody',
               purpose: 'tagging',
-              value: ['has-' + (targetTypes.find((t) =>
+              value: 'has-' + (targetTypes.find((t) =>
                 ['Drug', 'Condition', 'Outcome', 'Population'].includes(t)
-              ) ?? 'related').toLowerCase()],
+              ) ?? 'related').toLowerCase(),
             },
           ],
         });
