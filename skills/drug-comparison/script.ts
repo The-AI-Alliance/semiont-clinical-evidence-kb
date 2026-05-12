@@ -137,7 +137,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const gather = await semiont.gather.annotation(seedAnno.id, seedTrialId, { contextWindow: 2000 });
+  const gather = await semiont.gather.annotation(seedTrialId, seedAnno.id, { contextWindow: 2000 });
   const context = gather.response as GatheredContext;
 
   const trialList = (label: string, ids: ResourceId[]): string => {

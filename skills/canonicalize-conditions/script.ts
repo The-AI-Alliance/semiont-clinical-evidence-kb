@@ -122,7 +122,7 @@ async function main(): Promise<void> {
 
   for (const [key, anns] of clusters) {
     const sample = anns[0];
-    const gather = await semiont.gather.annotation(sample.annId, sample.rId, {
+    const gather = await semiont.gather.annotation(sample.rId, sample.annId, {
       contextWindow: 1200,
     });
     const context = gather.response as GatheredContext;

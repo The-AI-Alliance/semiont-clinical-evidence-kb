@@ -140,7 +140,7 @@ async function main(): Promise<void> {
 
   const gathered: GatheredContext[] = [];
   for (const ref of outcomeRefs.slice(0, MAX_GATHER)) {
-    const g = await semiont.gather.annotation(ref.annId, ref.rId, { contextWindow: 1500 });
+    const g = await semiont.gather.annotation(ref.rId, ref.annId, { contextWindow: 1500 });
     gathered.push(g.response as GatheredContext);
   }
 

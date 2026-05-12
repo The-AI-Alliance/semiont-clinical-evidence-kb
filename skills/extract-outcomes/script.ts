@@ -91,7 +91,7 @@ async function main(): Promise<void> {
 
   let synthesized = 0;
   for (const o of outcomes) {
-    const gather = await semiont.gather.annotation(o.annId, o.rId, { contextWindow: 1500 });
+    const gather = await semiont.gather.annotation(o.rId, o.annId, { contextWindow: 1500 });
     const context = gather.response as GatheredContext;
 
     // Parse any effect sizes visible in the gathered text — embed as frontmatter.

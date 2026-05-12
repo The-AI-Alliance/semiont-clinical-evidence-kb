@@ -9,6 +9,7 @@
 
 import { SemiontClient, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
+import { createdCount } from '../../src/mark-result.js';
 
 const STUDY_TYPES = (process.env.STUDY_TYPES ?? 'Trial,ObservationalStudy,SystematicReview')
   .split(',')
@@ -76,7 +77,7 @@ async function main(): Promise<void> {
     const progress = await semiont.mark.assist(rId, 'assessing', {
       instructions: ROB_INSTRUCTIONS,
     });
-    const n = progress.progress?.createdCount ?? 0;
+    const n = createdCount(progress);
     total += n;
     console.log(`  ${rId}: ${n} RoB annotations`);
   }
