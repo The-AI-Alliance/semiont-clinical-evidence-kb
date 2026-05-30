@@ -1,5 +1,5 @@
 [project]
-name = "Clinical Evidence Knowledge Base"
+name = "Clinical Evidence Knowledge Base (Synthetic Documents)"
 version = "0.1.0"
 
 [git]
@@ -7,6 +7,6 @@ sync = true
 
 [site]
 domain = "localhost:8080"
-siteName = "Clinical Evidence Knowledge Base"
+siteName = "Clinical Evidence Knowledge Base (Synthetic Documents)"
 adminEmail = ""
 oauthAllowedDomains = ["example.com"]
