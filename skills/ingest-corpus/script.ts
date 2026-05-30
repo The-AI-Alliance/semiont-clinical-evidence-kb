@@ -11,7 +11,7 @@
  * Usage: tsx skills/ingest-corpus/script.ts [--interactive]
  */
 
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@semiont/sdk';
 import { discoverCorpus, readForUpload } from '../../src/files.js';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
 
@@ -97,11 +97,18 @@ async function main(): Promise<void> {
     return;
   }
 
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
-  });
+  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
+  const email = process.env.SEMIONT_USER_EMAIL!;
+  const password = process.env.SEMIONT_USER_PASSWORD!;
+  const u = new URL(baseUrl);
+  const kb: KnowledgeBase = {
+    id: 'clinical-evidence-ingest-corpus',
+    label: 'clinical-evidence ingest-corpus',
+    email,
+    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
+  };
+  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const semiont = session.client;
 
   console.log(`Declaring ${KB_ENTITY_TYPES.length} entity types via frame...`);
   await semiont.frame.addEntityTypes(KB_ENTITY_TYPES);
@@ -127,7 +134,7 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nDone. ${created} resources created, ${failed} failed.`);
-  semiont.dispose();
+  await session.dispose();
   closeInteractive();
 }
 

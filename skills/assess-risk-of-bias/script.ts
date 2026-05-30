@@ -7,7 +7,7 @@
  * Usage: tsx skills/assess-risk-of-bias/script.ts [--interactive]
  */
 
-import { SemiontClient, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, type KnowledgeBase, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
 import { createdCount } from '../../src/mark-result.js';
 
@@ -38,11 +38,18 @@ function getMediaType(r: any): string | undefined {
 }
 
 async function main(): Promise<void> {
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
-  });
+  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
+  const email = process.env.SEMIONT_USER_EMAIL!;
+  const password = process.env.SEMIONT_USER_PASSWORD!;
+  const u = new URL(baseUrl);
+  const kb: KnowledgeBase = {
+    id: 'clinical-evidence-assess-risk-of-bias',
+    label: 'clinical-evidence assess-risk-of-bias',
+    email,
+    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
+  };
+  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const semiont = session.client;
 
   const all = await semiont.browse.resources({ limit: 1000 });
   const studyTypeSet = new Set(STUDY_TYPES);
@@ -59,7 +66,7 @@ async function main(): Promise<void> {
     console.log(
       `No studies of types ${STUDY_TYPES.join(', ')} found. Run skills/ingest-corpus/script.ts first.`,
     );
-    semiont.dispose();
+    await session.dispose();
     closeInteractive();
     return;
   }
@@ -67,7 +74,7 @@ async function main(): Promise<void> {
   console.log(`Will assess ${targets.length} study resource(s) for RoB.`);
   const proceed = await confirm('Proceed?', true);
   if (!proceed) {
-    semiont.dispose();
+    await session.dispose();
     closeInteractive();
     return;
   }
@@ -83,7 +90,7 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nDone. Created ${total} risk-of-bias annotations.`);
-  semiont.dispose();
+  await session.dispose();
   closeInteractive();
 }
 

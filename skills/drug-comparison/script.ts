@@ -9,7 +9,9 @@
  */
 
 import {
-  SemiontClient,
+  SemiontSession,
+  InMemorySessionStorage,
+  type KnowledgeBase,
   resourceId as ridBrand,
   type GatheredContext,
   type ResourceId,
@@ -47,11 +49,18 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
-  });
+  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
+  const email = process.env.SEMIONT_USER_EMAIL!;
+  const password = process.env.SEMIONT_USER_PASSWORD!;
+  const u = new URL(baseUrl);
+  const kb: KnowledgeBase = {
+    id: 'clinical-evidence-drug-comparison',
+    label: 'clinical-evidence drug-comparison',
+    email,
+    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
+  };
+  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const semiont = session.client;
 
   const all = await semiont.browse.resources({ limit: 2000 });
   const drugAResource = all.find((r) => {
@@ -64,7 +73,7 @@ async function main(): Promise<void> {
   });
   if (!drugAResource || !drugBResource) {
     console.error('Both drugs must be present as canonical Drug resources. Run canonicalize-drugs first.');
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -124,7 +133,7 @@ async function main(): Promise<void> {
   const seedTrialId = headToHead[0] ?? indirectAtrials[0] ?? onlyA[0];
   if (!seedTrialId) {
     console.error('No relevant trials found.');
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -132,7 +141,7 @@ async function main(): Promise<void> {
   const seedAnno = seedAnnos[0];
   if (!seedAnno) {
     console.error('Seed trial has no annotations to gather from.');
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -140,7 +149,7 @@ async function main(): Promise<void> {
   const gather = await semiont.gather.annotation(seedTrialId, seedAnno.id, { contextWindow: 2000 });
   if (!('response' in gather)) {
     console.error('gather.annotation did not return a Complete event');
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -174,14 +183,14 @@ async function main(): Promise<void> {
 
   if (yieldEvent.kind !== 'complete') {
     console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
   const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
   console.log(`\n✓ DrugComparison synthesized: ${resourceId}`);
 
-  semiont.dispose();
+  await session.dispose();
   closeReadline();
 }
 

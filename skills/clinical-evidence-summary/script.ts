@@ -8,7 +8,9 @@
  */
 
 import {
-  SemiontClient,
+  SemiontSession,
+  InMemorySessionStorage,
+  type KnowledgeBase,
   resourceId as ridBrand,
   type AnnotationId,
   type GatheredContext,
@@ -53,11 +55,18 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
-  });
+  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
+  const email = process.env.SEMIONT_USER_EMAIL!;
+  const password = process.env.SEMIONT_USER_PASSWORD!;
+  const u = new URL(baseUrl);
+  const kb: KnowledgeBase = {
+    id: 'clinical-evidence-clinical-evidence-summary',
+    label: 'clinical-evidence clinical-evidence-summary',
+    email,
+    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
+  };
+  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const semiont = session.client;
 
   const all = await semiont.browse.resources({ limit: 2000 });
 
@@ -69,14 +78,14 @@ async function main(): Promise<void> {
   });
   if (drugResources.length === 0) {
     console.error(`No canonical Drug resource matches "${drug}". Run canonicalize-drugs first.`);
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
   const drugRes = drugResources[0];
   if (!drugRes) {
     console.error('No canonical Drug resource available.');
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -105,7 +114,7 @@ async function main(): Promise<void> {
 
   if (matchingTrials.length === 0) {
     console.error(`No Trials with edges to "${(drugRes as any).name}". Run build-trial-graph first.`);
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -139,7 +148,7 @@ async function main(): Promise<void> {
 
   if (outcomeRefs.length === 0) {
     console.error('No Outcome edges found on matching Trials. Run extract-outcomes + build-trial-graph first.');
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -159,7 +168,7 @@ async function main(): Promise<void> {
   const seedGather = gathered[0];
   if (!seedRef || !seedGather) {
     console.error('No outcome contexts gathered.');
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -187,7 +196,7 @@ async function main(): Promise<void> {
 
   if (yieldEvent.kind !== 'complete') {
     console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
-    semiont.dispose();
+    await session.dispose();
     closeReadline();
     process.exit(1);
   }
@@ -198,7 +207,7 @@ async function main(): Promise<void> {
   console.log(`  Trials reviewed: ${matchingTrials.length}`);
   console.log(`  Outcome edges considered: ${outcomeRefs.length}`);
 
-  semiont.dispose();
+  await session.dispose();
   closeReadline();
 }
 
