@@ -44,129 +44,130 @@ async function main(): Promise<void> {
   const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
   const semiont = session.client;
 
-  const all = await semiont.browse.resources({ limit: 1000 });
+  try {
+    const all = await semiont.browse.resources({ limit: 1000 });
 
-  const studies = all.filter((r) => {
-    const mt = getMediaType(r);
-    const isText = mt === 'text/markdown' || mt === 'text/plain';
-    const types: string[] = (r as any).entityTypes ?? [];
-    return isText && (types.includes('Trial') || types.includes('ObservationalStudy'));
-  });
-
-  if (studies.length === 0) {
-    console.log('No Trial / ObservationalStudy resources found. Run skills/ingest-corpus/script.ts first.');
-    await session.dispose();
-    closeInteractive();
-    return;
-  }
-
-  console.log(`Will canonicalize ${studies.length} study resource(s) and wire Trial graph edges.`);
-  const proceed = await confirm('Proceed?', true);
-  if (!proceed) {
-    await session.dispose();
-    closeInteractive();
-    return;
-  }
-
-  let trialsCreated = 0;
-  let totalEdges = 0;
-
-  for (const study of studies) {
-    const studyId = ridBrand(study['@id']);
-    const studyName = (study as any).name ?? 'untitled';
-
-    // Find an NCT in any annotation on this study
-    const annotations = await semiont.browse.annotations(studyId);
-    const annTexts: string[] = [];
-    for (const ann of annotations) {
-      const target = ann.target;
-      if (typeof target === 'string' || !target.selector) continue;
-      const selectors = Array.isArray(target.selector) ? target.selector : [target.selector];
-      for (const s of selectors) {
-        if (s.type === 'TextQuoteSelector') { annTexts.push(s.exact); break; }
-      }
-    }
-    const nctMatch = annTexts.find((t) => NCT_RE.test(t));
-    const nctId = nctMatch ? (nctMatch.match(NCT_RE)?.[0] ?? null) : null;
-
-    // Synthesize canonical Trial resource
-    const externalRefs = nctId
-      ? formatReferenceSection([lookupTrialStub(nctId)])
-      : '';
-    const trialBody = `# ${studyName}\n\nCanonical Trial resource for the source study at \`${studyId}\`.\n\n${externalRefs}`;
-
-    const yieldEvent = await semiont.yield.resource({
-      name: studyName,
-      file: Buffer.from(trialBody, 'utf-8'),
-      format: 'text/markdown',
-      entityTypes: nctId ? ['Trial', 'ClinicalTrialsGovEntry'] : ['Trial'],
-      storageUri: `file://generated/trial-${slugify(studyName)}.md`,
+    const studies = all.filter((r) => {
+      const mt = getMediaType(r);
+      const isText = mt === 'text/markdown' || mt === 'text/plain';
+      const types: string[] = (r as any).entityTypes ?? [];
+      return isText && (types.includes('Trial') || types.includes('ObservationalStudy'));
     });
-    const trialId = yieldEvent.resourceId;
-    trialsCreated++;
 
-    // Walk annotations on the source study; collect bound canonical resources
-    // (Drug, Condition, Outcome) and add edges from the Trial.
-    const seen = new Set<string>();
-    let edges = 0;
-    for (const ann of annotations) {
-      const allBodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
-      const bodies = allBodies.filter(
-        (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
-      );
-      for (const b of bodies) {
-        const target = (b as any).source as string | undefined;
-        if (!target || seen.has(target)) continue;
-        seen.add(target);
-
-        // Look up the target's entity types — only edge to canonical Drug/Condition/Outcome/Population
-        const targetRes = all.find((r) => r['@id'] === target);
-        const targetTypes: string[] = (targetRes as any)?.entityTypes ?? [];
-        const isCanonical =
-          targetTypes.includes('Drug') ||
-          targetTypes.includes('Condition') ||
-          targetTypes.includes('Outcome') ||
-          targetTypes.includes('Population');
-        if (!isCanonical) continue;
-
-        // Add an edge by binding the Trial body to a description of the
-        // relationship. Resource-level relationship edges have no span, so
-        // we attach a FragmentSelector with an empty value to satisfy the
-        // SDK schema (selector is required).
-        await semiont.mark.annotation({
-          target: {
-            source: trialId,
-            selector: { type: 'FragmentSelector', value: '' },
-          },
-          motivation: 'linking',
-          body: [
-            {
-              type: 'SpecificResource',
-              source: target,
-              purpose: 'linking',
-            },
-            {
-              type: 'TextualBody',
-              purpose: 'tagging',
-              value: 'has-' + (targetTypes.find((t) =>
-                ['Drug', 'Condition', 'Outcome', 'Population'].includes(t)
-              ) ?? 'related').toLowerCase(),
-            },
-          ],
-        });
-        edges++;
-      }
+    if (studies.length === 0) {
+      console.log('No Trial / ObservationalStudy resources found. Run skills/ingest-corpus/script.ts first.');
+      closeInteractive();
+      return;
     }
 
-    totalEdges += edges;
-    console.log(`  + Trial ${trialId} ("${studyName}"${nctId ? `, ${nctId}` : ''}): ${edges} edges`);
-  }
+    console.log(`Will canonicalize ${studies.length} study resource(s) and wire Trial graph edges.`);
+    const proceed = await confirm('Proceed?', true);
+    if (!proceed) {
+      closeInteractive();
+      return;
+    }
 
-  console.log(
-    `\nDone. ${trialsCreated} canonical Trial resources; ${totalEdges} edges wired across the graph.`,
-  );
-  await session.dispose();
-  closeInteractive();
+    let trialsCreated = 0;
+    let totalEdges = 0;
+
+    for (const study of studies) {
+      const studyId = ridBrand(study['@id']);
+      const studyName = (study as any).name ?? 'untitled';
+
+      // Find an NCT in any annotation on this study
+      const annotations = await semiont.browse.annotations(studyId);
+      const annTexts: string[] = [];
+      for (const ann of annotations) {
+        const target = ann.target;
+        if (typeof target === 'string' || !target.selector) continue;
+        const selectors = Array.isArray(target.selector) ? target.selector : [target.selector];
+        for (const s of selectors) {
+          if (s.type === 'TextQuoteSelector') { annTexts.push(s.exact); break; }
+        }
+      }
+      const nctMatch = annTexts.find((t) => NCT_RE.test(t));
+      const nctId = nctMatch ? (nctMatch.match(NCT_RE)?.[0] ?? null) : null;
+
+      // Synthesize canonical Trial resource
+      const externalRefs = nctId
+        ? formatReferenceSection([lookupTrialStub(nctId)])
+        : '';
+      const trialBody = `# ${studyName}\n\nCanonical Trial resource for the source study at \`${studyId}\`.\n\n${externalRefs}`;
+
+      const yieldEvent = await semiont.yield.resource({
+        name: studyName,
+        file: Buffer.from(trialBody, 'utf-8'),
+        format: 'text/markdown',
+        entityTypes: nctId ? ['Trial', 'ClinicalTrialsGovEntry'] : ['Trial'],
+        storageUri: `file://generated/trial-${slugify(studyName)}.md`,
+      });
+      const trialId = yieldEvent.resourceId;
+      trialsCreated++;
+
+      // Walk annotations on the source study; collect bound canonical resources
+      // (Drug, Condition, Outcome) and add edges from the Trial.
+      const seen = new Set<string>();
+      let edges = 0;
+      for (const ann of annotations) {
+        const allBodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
+        const bodies = allBodies.filter(
+          (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
+        );
+        for (const b of bodies) {
+          const target = (b as any).source as string | undefined;
+          if (!target || seen.has(target)) continue;
+          seen.add(target);
+
+          // Look up the target's entity types — only edge to canonical Drug/Condition/Outcome/Population
+          const targetRes = all.find((r) => r['@id'] === target);
+          const targetTypes: string[] = (targetRes as any)?.entityTypes ?? [];
+          const isCanonical =
+            targetTypes.includes('Drug') ||
+            targetTypes.includes('Condition') ||
+            targetTypes.includes('Outcome') ||
+            targetTypes.includes('Population');
+          if (!isCanonical) continue;
+
+          // Add an edge by binding the Trial body to a description of the
+          // relationship. Resource-level relationship edges have no span, so
+          // we attach a FragmentSelector with an empty value to satisfy the
+          // SDK schema (selector is required).
+          await semiont.mark.annotation({
+            target: {
+              source: trialId,
+              selector: { type: 'FragmentSelector', value: '' },
+            },
+            motivation: 'linking',
+            body: [
+              {
+                type: 'SpecificResource',
+                source: target,
+                purpose: 'linking',
+              },
+              {
+                type: 'TextualBody',
+                purpose: 'tagging',
+                value: 'has-' + (targetTypes.find((t) =>
+                  ['Drug', 'Condition', 'Outcome', 'Population'].includes(t)
+                ) ?? 'related').toLowerCase(),
+              },
+            ],
+          });
+          edges++;
+        }
+      }
+
+      totalEdges += edges;
+      console.log(`  + Trial ${trialId} ("${studyName}"${nctId ? `, ${nctId}` : ''}): ${edges} edges`);
+    }
+
+    console.log(
+      `\nDone. ${trialsCreated} canonical Trial resources; ${totalEdges} edges wired across the graph.`,
+    );
+    closeInteractive();
+  } finally {
+    await session.dispose();
+  }
 }
 
 main().catch((e) => {

@@ -58,172 +58,172 @@ async function main(): Promise<void> {
   const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
   const semiont = session.client;
 
-  const all = await semiont.browse.resources({ limit: 1000 });
-  const markdownResources = all.filter((r) => {
-    const mt = getMediaType(r);
-    return mt === 'text/markdown' || mt === 'text/plain';
-  });
-
-  if (markdownResources.length === 0) {
-    console.log('No markdown corpus resources found. Run skills/ingest-corpus/script.ts first.');
-    await session.dispose();
-    closeInteractive();
-    return;
-  }
-
-  const condAnnotations: CondAnno[] = [];
-  for (const r of markdownResources) {
-    const rId = ridBrand(r['@id']);
-    const annotations = await semiont.browse.annotations(rId);
-    for (const ann of annotations) {
-      if (ann.motivation !== 'linking') continue;
-      const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
-      const tags = bodies
-        .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
-        .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
-      if (!tags.includes('Condition')) continue;
-      const alreadyBound = bodies.some(
-        (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
-      );
-      const target = ann.target;
-      const selectors =
-        typeof target === 'string' || !target.selector
-          ? []
-          : Array.isArray(target.selector)
-            ? target.selector
-            : [target.selector];
-      let text = '';
-      for (const s of selectors) {
-        if (s.type === 'TextQuoteSelector') { text = s.exact; break; }
-      }
-      condAnnotations.push({
-        rId,
-        annId: ann.id,
-        text,
-        alreadyBound,
-      });
-    }
-  }
-
-  if (condAnnotations.length === 0) {
-    console.log('No Condition annotations found. Run skills/mark-medical-entities/script.ts first.');
-    await session.dispose();
-    closeInteractive();
-    return;
-  }
-
-  const clusters = new Map<string, CondAnno[]>();
-  let alreadyBoundCount = 0;
-  for (const a of condAnnotations) {
-    if (a.alreadyBound) {
-      alreadyBoundCount++;
-      continue;
-    }
-    const key = a.text.toLowerCase().trim();
-    if (!key) continue;
-    if (!clusters.has(key)) clusters.set(key, []);
-    clusters.get(key)!.push(a);
-  }
-
-  console.log(
-    `Found ${condAnnotations.length} Condition annotation(s). ` +
-      `${alreadyBoundCount} already bound; ${clusters.size} unbound clusters to process.`,
-  );
-
-  const proceed = await confirm('Proceed?', true);
-  if (!proceed) {
-    await session.dispose();
-    closeInteractive();
-    return;
-  }
-
-  let bound = 0;
-  let synthesized = 0;
-  let skipped = 0;
-
-  for (const [key, anns] of clusters) {
-    const sample = anns[0];
-    if (!sample) continue;
-    const gather = await semiont.gather.annotation(sample.rId, sample.annId, {
-      contextWindow: 1200,
+  try {
+    const all = await semiont.browse.resources({ limit: 1000 });
+    const markdownResources = all.filter((r) => {
+      const mt = getMediaType(r);
+      return mt === 'text/markdown' || mt === 'text/plain';
     });
-    if (!('response' in gather)) continue;
-    const context = gather.response as GatheredContext;
 
-    const matchResult = await semiont.match.search(sample.rId, sample.annId, context, {
-      limit: 5,
-      useSemanticScoring: true,
-    });
-    const top = matchResult.response[0];
+    if (markdownResources.length === 0) {
+      console.log('No markdown corpus resources found. Run skills/ingest-corpus/script.ts first.');
+      closeInteractive();
+      return;
+    }
 
-    let targetResourceId: string;
-    if (top && (top.score ?? 0) >= MATCH_THRESHOLD && top.entityTypes?.includes('Condition')) {
-      targetResourceId = top['@id'];
-      console.log(`  ↪ "${sample.text}" → ${top.name} (existing, score ${top.score})`);
-    } else {
-      const proceedYield = isInteractive()
-        ? await confirm(
-            `No confident match for "${sample.text}". Synthesize a new Condition resource?`,
-            true,
-          )
-        : true;
-      if (!proceedYield) {
-        skipped++;
+    const condAnnotations: CondAnno[] = [];
+    for (const r of markdownResources) {
+      const rId = ridBrand(r['@id']);
+      const annotations = await semiont.browse.annotations(rId);
+      for (const ann of annotations) {
+        if (ann.motivation !== 'linking') continue;
+        const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
+        const tags = bodies
+          .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
+          .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
+        if (!tags.includes('Condition')) continue;
+        const alreadyBound = bodies.some(
+          (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
+        );
+        const target = ann.target;
+        const selectors =
+          typeof target === 'string' || !target.selector
+            ? []
+            : Array.isArray(target.selector)
+              ? target.selector
+              : [target.selector];
+        let text = '';
+        for (const s of selectors) {
+          if (s.type === 'TextQuoteSelector') { text = s.exact; break; }
+        }
+        condAnnotations.push({
+          rId,
+          annId: ann.id,
+          text,
+          alreadyBound,
+        });
+      }
+    }
+
+    if (condAnnotations.length === 0) {
+      console.log('No Condition annotations found. Run skills/mark-medical-entities/script.ts first.');
+      closeInteractive();
+      return;
+    }
+
+    const clusters = new Map<string, CondAnno[]>();
+    let alreadyBoundCount = 0;
+    for (const a of condAnnotations) {
+      if (a.alreadyBound) {
+        alreadyBoundCount++;
         continue;
       }
+      const key = a.text.toLowerCase().trim();
+      if (!key) continue;
+      if (!clusters.has(key)) clusters.set(key, []);
+      clusters.get(key)!.push(a);
+    }
 
-      const refs = [
-        lookupConditionStub(key, PRIMARY_AUTHORITY),
-        lookupConditionStub(key, SECONDARY_AUTHORITY),
-      ];
-      const externalRefs = formatReferenceSection(refs);
+    console.log(
+      `Found ${condAnnotations.length} Condition annotation(s). ` +
+        `${alreadyBoundCount} already bound; ${clusters.size} unbound clusters to process.`,
+    );
 
-      const yieldEvent = await semiont.yield.fromAnnotation(sample.rId, sample.annId, {
-        title: key,
-        storageUri: `file://generated/condition-${slugify(key)}.md`,
-        context,
-        entityTypes: ['Condition'],
-        prompt: externalRefs
-          ? `Include this references section at the end of the body verbatim:\n\n${externalRefs}`
-          : undefined,
+    const proceed = await confirm('Proceed?', true);
+    if (!proceed) {
+      closeInteractive();
+      return;
+    }
+
+    let bound = 0;
+    let synthesized = 0;
+    let skipped = 0;
+
+    for (const [key, anns] of clusters) {
+      const sample = anns[0];
+      if (!sample) continue;
+      const gather = await semiont.gather.annotation(sample.rId, sample.annId, {
+        contextWindow: 1200,
       });
+      if (!('response' in gather)) continue;
+      const context = gather.response as GatheredContext;
 
-      if (yieldEvent.kind !== 'complete') {
-        console.warn(`  unexpected yield event for "${sample.text}": ${yieldEvent.kind}`);
-        continue;
-      }
-      const newResourceId = (
-        yieldEvent.data.result as { resourceId?: string } | undefined
-      )?.resourceId;
-      if (!newResourceId) {
-        console.warn(`  yield.fromAnnotation gave no resourceId for "${sample.text}"`);
-        continue;
+      const matchResult = await semiont.match.search(sample.rId, sample.annId, context, {
+        limit: 5,
+        useSemanticScoring: true,
+      });
+      const top = matchResult.response[0];
+
+      let targetResourceId: string;
+      if (top && (top.score ?? 0) >= MATCH_THRESHOLD && top.entityTypes?.includes('Condition')) {
+        targetResourceId = top['@id'];
+        console.log(`  ↪ "${sample.text}" → ${top.name} (existing, score ${top.score})`);
+      } else {
+        const proceedYield = isInteractive()
+          ? await confirm(
+              `No confident match for "${sample.text}". Synthesize a new Condition resource?`,
+              true,
+            )
+          : true;
+        if (!proceedYield) {
+          skipped++;
+          continue;
+        }
+
+        const refs = [
+          lookupConditionStub(key, PRIMARY_AUTHORITY),
+          lookupConditionStub(key, SECONDARY_AUTHORITY),
+        ];
+        const externalRefs = formatReferenceSection(refs);
+
+        const yieldEvent = await semiont.yield.fromAnnotation(sample.rId, sample.annId, {
+          title: key,
+          storageUri: `file://generated/condition-${slugify(key)}.md`,
+          context,
+          entityTypes: ['Condition'],
+          prompt: externalRefs
+            ? `Include this references section at the end of the body verbatim:\n\n${externalRefs}`
+            : undefined,
+        });
+
+        if (yieldEvent.kind !== 'complete') {
+          console.warn(`  unexpected yield event for "${sample.text}": ${yieldEvent.kind}`);
+          continue;
+        }
+        const newResourceId = (
+          yieldEvent.data.result as { resourceId?: string } | undefined
+        )?.resourceId;
+        if (!newResourceId) {
+          console.warn(`  yield.fromAnnotation gave no resourceId for "${sample.text}"`);
+          continue;
+        }
+
+        targetResourceId = newResourceId;
+        synthesized++;
+        console.log(
+          `  + "${sample.text}" → ${newResourceId} (synthesized; ${PRIMARY_AUTHORITY}+${SECONDARY_AUTHORITY} grounded)`,
+        );
       }
 
-      targetResourceId = newResourceId;
-      synthesized++;
-      console.log(
-        `  + "${sample.text}" → ${newResourceId} (synthesized; ${PRIMARY_AUTHORITY}+${SECONDARY_AUTHORITY} grounded)`,
-      );
+      for (const a of anns) {
+        await semiont.bind.body(a.rId, a.annId, [
+          {
+            op: 'add',
+            item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' },
+          },
+        ]);
+        bound++;
+      }
     }
 
-    for (const a of anns) {
-      await semiont.bind.body(a.rId, a.annId, [
-        {
-          op: 'add',
-          item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' },
-        },
-      ]);
-      bound++;
-    }
+    console.log(
+      `\nDone. Bound ${bound} annotations across ${clusters.size} condition clusters; ` +
+        `${synthesized} new Condition resources synthesized; ${skipped} skipped.`,
+    );
+    closeInteractive();
+  } finally {
+    await session.dispose();
   }
-
-  console.log(
-    `\nDone. Bound ${bound} annotations across ${clusters.size} condition clusters; ` +
-      `${synthesized} new Condition resources synthesized; ${skipped} skipped.`,
-  );
-  await session.dispose();
-  closeInteractive();
 }
 
 main().catch((e) => {

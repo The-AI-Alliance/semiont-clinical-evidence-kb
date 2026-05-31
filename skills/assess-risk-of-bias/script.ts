@@ -51,47 +51,48 @@ async function main(): Promise<void> {
   const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
   const semiont = session.client;
 
-  const all = await semiont.browse.resources({ limit: 1000 });
-  const studyTypeSet = new Set(STUDY_TYPES);
-  const targets: ResourceId[] = all
-    .filter((r) => {
-      const mt = getMediaType(r);
-      const isText = mt === 'text/markdown' || mt === 'text/plain';
-      const types: string[] = (r as any).entityTypes ?? [];
-      return isText && types.some((t) => studyTypeSet.has(t));
-    })
-    .map((r) => ridBrand(r['@id']));
+  try {
+    const all = await semiont.browse.resources({ limit: 1000 });
+    const studyTypeSet = new Set(STUDY_TYPES);
+    const targets: ResourceId[] = all
+      .filter((r) => {
+        const mt = getMediaType(r);
+        const isText = mt === 'text/markdown' || mt === 'text/plain';
+        const types: string[] = (r as any).entityTypes ?? [];
+        return isText && types.some((t) => studyTypeSet.has(t));
+      })
+      .map((r) => ridBrand(r['@id']));
 
-  if (targets.length === 0) {
-    console.log(
-      `No studies of types ${STUDY_TYPES.join(', ')} found. Run skills/ingest-corpus/script.ts first.`,
-    );
-    await session.dispose();
+    if (targets.length === 0) {
+      console.log(
+        `No studies of types ${STUDY_TYPES.join(', ')} found. Run skills/ingest-corpus/script.ts first.`,
+      );
+      closeInteractive();
+      return;
+    }
+
+    console.log(`Will assess ${targets.length} study resource(s) for RoB.`);
+    const proceed = await confirm('Proceed?', true);
+    if (!proceed) {
+      closeInteractive();
+      return;
+    }
+
+    let total = 0;
+    for (const rId of targets) {
+      const progress = await semiont.mark.assist(rId, 'assessing', {
+        instructions: ROB_INSTRUCTIONS,
+      });
+      const n = createdCount(progress);
+      total += n;
+      console.log(`  ${rId}: ${n} RoB annotations`);
+    }
+
+    console.log(`\nDone. Created ${total} risk-of-bias annotations.`);
     closeInteractive();
-    return;
-  }
-
-  console.log(`Will assess ${targets.length} study resource(s) for RoB.`);
-  const proceed = await confirm('Proceed?', true);
-  if (!proceed) {
+  } finally {
     await session.dispose();
-    closeInteractive();
-    return;
   }
-
-  let total = 0;
-  for (const rId of targets) {
-    const progress = await semiont.mark.assist(rId, 'assessing', {
-      instructions: ROB_INSTRUCTIONS,
-    });
-    const n = createdCount(progress);
-    total += n;
-    console.log(`  ${rId}: ${n} RoB annotations`);
-  }
-
-  console.log(`\nDone. Created ${total} risk-of-bias annotations.`);
-  await session.dispose();
-  closeInteractive();
 }
 
 main().catch((e) => {

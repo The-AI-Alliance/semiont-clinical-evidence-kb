@@ -68,147 +68,144 @@ async function main(): Promise<void> {
   const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
   const semiont = session.client;
 
-  const all = await semiont.browse.resources({ limit: 2000 });
+  try {
+    const all = await semiont.browse.resources({ limit: 2000 });
 
-  // Find the canonical Drug resource matching the requested name
-  const drugResources = all.filter((r) => {
-    const types: string[] = (r as any).entityTypes ?? [];
-    const name = ((r as any).name ?? '').toString().toLowerCase();
-    return types.includes('Drug') && name.includes(drug.toLowerCase());
-  });
-  if (drugResources.length === 0) {
-    console.error(`No canonical Drug resource matches "${drug}". Run canonicalize-drugs first.`);
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-  const drugRes = drugResources[0];
-  if (!drugRes) {
-    console.error('No canonical Drug resource available.');
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-  console.log(`Using canonical Drug: ${(drugRes as any).name} (${drugRes['@id']})`);
+    // Find the canonical Drug resource matching the requested name
+    const drugResources = all.filter((r) => {
+      const types: string[] = (r as any).entityTypes ?? [];
+      const name = ((r as any).name ?? '').toString().toLowerCase();
+      return types.includes('Drug') && name.includes(drug.toLowerCase());
+    });
+    if (drugResources.length === 0) {
+      console.error(`No canonical Drug resource matches "${drug}". Run canonicalize-drugs first.`);
+      closeReadline();
+      process.exit(1);
+    }
+    const drugRes = drugResources[0];
+    if (!drugRes) {
+      console.error('No canonical Drug resource available.');
+      closeReadline();
+      process.exit(1);
+    }
+    console.log(`Using canonical Drug: ${(drugRes as any).name} (${drugRes['@id']})`);
 
-  // Find Trials whose graph edges include this Drug
-  const trials = all.filter((r) => {
-    const types: string[] = (r as any).entityTypes ?? [];
-    return types.includes('Trial');
-  });
+    // Find Trials whose graph edges include this Drug
+    const trials = all.filter((r) => {
+      const types: string[] = (r as any).entityTypes ?? [];
+      return types.includes('Trial');
+    });
 
-  const matchingTrials: typeof trials = [];
-  for (const t of trials) {
-    const tId = ridBrand(t['@id']);
-    const annos = await semiont.browse.annotations(tId);
-    const linkedSources = new Set(
-      annos.flatMap((a: any) => {
-        const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
-        return bodies
-          .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
-          .map((b: any) => b.source as string);
-      }),
-    );
-    if (linkedSources.has(drugRes['@id'])) matchingTrials.push(t);
-  }
-
-  if (matchingTrials.length === 0) {
-    console.error(`No Trials with edges to "${(drugRes as any).name}". Run build-trial-graph first.`);
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-  console.log(`Found ${matchingTrials.length} matching Trial resource(s).`);
-
-  // Collect Outcome annotations on the source studies underlying those trials
-  const outcomeRefs: { rId: ResourceId; annId: AnnotationId; text: string }[] = [];
-  // The Trial canonical's edges point to Outcomes too — gather those
-  for (const t of matchingTrials) {
-    const tId = ridBrand(t['@id']);
-    const annos = await semiont.browse.annotations(tId);
-    for (const a of annos) {
-      const aBodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
-      const targets = aBodies.filter(
-        (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
+    const matchingTrials: typeof trials = [];
+    for (const t of trials) {
+      const tId = ridBrand(t['@id']);
+      const annos = await semiont.browse.annotations(tId);
+      const linkedSources = new Set(
+        annos.flatMap((a: any) => {
+          const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
+          return bodies
+            .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
+            .map((b: any) => b.source as string);
+        }),
       );
-      for (const tgt of targets) {
-        const targetRes = all.find((r) => r['@id'] === (tgt as any).source);
-        const targetTypes: string[] = (targetRes as any)?.entityTypes ?? [];
-        if (!targetTypes.includes('Outcome')) continue;
-        // gather.annotation on the Outcome resource — pull its source-anchoring annotation
-        // We approximate: gather on this annotation (the edge), which carries the Trial's context.
-        outcomeRefs.push({
-          rId: tId,
-          annId: a.id,
-          text: ((targetRes as any)?.name ?? '') as string,
-        });
+      if (linkedSources.has(drugRes['@id'])) matchingTrials.push(t);
+    }
+
+    if (matchingTrials.length === 0) {
+      console.error(`No Trials with edges to "${(drugRes as any).name}". Run build-trial-graph first.`);
+      closeReadline();
+      process.exit(1);
+    }
+    console.log(`Found ${matchingTrials.length} matching Trial resource(s).`);
+
+    // Collect Outcome annotations on the source studies underlying those trials
+    const outcomeRefs: { rId: ResourceId; annId: AnnotationId; text: string }[] = [];
+    // The Trial canonical's edges point to Outcomes too — gather those
+    for (const t of matchingTrials) {
+      const tId = ridBrand(t['@id']);
+      const annos = await semiont.browse.annotations(tId);
+      for (const a of annos) {
+        const aBodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
+        const targets = aBodies.filter(
+          (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
+        );
+        for (const tgt of targets) {
+          const targetRes = all.find((r) => r['@id'] === (tgt as any).source);
+          const targetTypes: string[] = (targetRes as any)?.entityTypes ?? [];
+          if (!targetTypes.includes('Outcome')) continue;
+          // gather.annotation on the Outcome resource — pull its source-anchoring annotation
+          // We approximate: gather on this annotation (the edge), which carries the Trial's context.
+          outcomeRefs.push({
+            rId: tId,
+            annId: a.id,
+            text: ((targetRes as any)?.name ?? '') as string,
+          });
+        }
       }
     }
-  }
 
-  if (outcomeRefs.length === 0) {
-    console.error('No Outcome edges found on matching Trials. Run extract-outcomes + build-trial-graph first.');
-    await session.dispose();
+    if (outcomeRefs.length === 0) {
+      console.error('No Outcome edges found on matching Trials. Run extract-outcomes + build-trial-graph first.');
+      closeReadline();
+      process.exit(1);
+    }
+
+    console.log(`${outcomeRefs.length} outcome edge(s) discoverable; gathering up to ${MAX_GATHER}.`);
+
+    const gathered: GatheredContext[] = [];
+    for (const ref of outcomeRefs.slice(0, MAX_GATHER)) {
+      const g = await semiont.gather.annotation(ref.rId, ref.annId, { contextWindow: 1500 });
+      if (!('response' in g)) continue;
+      gathered.push(g.response as GatheredContext);
+    }
+
+    // Use the first gathered context as the anchor for yield.fromAnnotation;
+    // the others are referenced in the body via prepend.
+    const seedRef = outcomeRefs[0];
+    const seedGather = gathered[0];
+    if (!seedRef || !seedGather) {
+      console.error('No outcome contexts gathered.');
+      closeReadline();
+      process.exit(1);
+    }
+
+    const supplementaryContext = gathered
+      .slice(1)
+      .map((g) => (g as any).text ?? (g as any).content ?? '')
+      .filter((t) => typeof t === 'string')
+      .join('\n\n---\n\n');
+
+    const prepend =
+      `# Clinical Evidence Summary\n\n` +
+      `**Question:** ${drug} for ${condition}${population ? ` in ${population}` : ''}.\n\n` +
+      `## Trials reviewed\n\n` +
+      matchingTrials.map((t) => `- ${(t as any).name} (\`${t['@id']}\`)`).join('\n') +
+      `\n\n## Supplementary context\n\n${supplementaryContext}\n\n---\n\n`;
+
+    const yieldEvent = await semiont.yield.fromAnnotation(seedRef.rId, seedRef.annId, {
+      title: `Clinical Evidence Summary: ${drug} for ${condition}`,
+      storageUri: `file://generated/evidence-summary-${slugify(drug)}-${slugify(condition)}.md`,
+      context: seedGather,
+      entityTypes: ['ClinicalEvidenceSummary', 'Aggregate'],
+      prompt: `${SUMMARY_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
+    });
+
+    if (yieldEvent.kind !== 'complete') {
+      console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
+      closeReadline();
+      process.exit(1);
+    }
+    const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
+    console.log(`\n✓ ClinicalEvidenceSummary synthesized: ${resourceId}`);
+    console.log(`  Drug: ${(drugRes as any).name}`);
+    console.log(`  Condition: ${condition}`);
+    console.log(`  Trials reviewed: ${matchingTrials.length}`);
+    console.log(`  Outcome edges considered: ${outcomeRefs.length}`);
+
     closeReadline();
-    process.exit(1);
-  }
-
-  console.log(`${outcomeRefs.length} outcome edge(s) discoverable; gathering up to ${MAX_GATHER}.`);
-
-  const gathered: GatheredContext[] = [];
-  for (const ref of outcomeRefs.slice(0, MAX_GATHER)) {
-    const g = await semiont.gather.annotation(ref.rId, ref.annId, { contextWindow: 1500 });
-    if (!('response' in g)) continue;
-    gathered.push(g.response as GatheredContext);
-  }
-
-  // Use the first gathered context as the anchor for yield.fromAnnotation;
-  // the others are referenced in the body via prepend.
-  const seedRef = outcomeRefs[0];
-  const seedGather = gathered[0];
-  if (!seedRef || !seedGather) {
-    console.error('No outcome contexts gathered.');
+  } finally {
     await session.dispose();
-    closeReadline();
-    process.exit(1);
   }
-
-  const supplementaryContext = gathered
-    .slice(1)
-    .map((g) => (g as any).text ?? (g as any).content ?? '')
-    .filter((t) => typeof t === 'string')
-    .join('\n\n---\n\n');
-
-  const prepend =
-    `# Clinical Evidence Summary\n\n` +
-    `**Question:** ${drug} for ${condition}${population ? ` in ${population}` : ''}.\n\n` +
-    `## Trials reviewed\n\n` +
-    matchingTrials.map((t) => `- ${(t as any).name} (\`${t['@id']}\`)`).join('\n') +
-    `\n\n## Supplementary context\n\n${supplementaryContext}\n\n---\n\n`;
-
-  const yieldEvent = await semiont.yield.fromAnnotation(seedRef.rId, seedRef.annId, {
-    title: `Clinical Evidence Summary: ${drug} for ${condition}`,
-    storageUri: `file://generated/evidence-summary-${slugify(drug)}-${slugify(condition)}.md`,
-    context: seedGather,
-    entityTypes: ['ClinicalEvidenceSummary', 'Aggregate'],
-    prompt: `${SUMMARY_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
-  });
-
-  if (yieldEvent.kind !== 'complete') {
-    console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-  const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
-  console.log(`\n✓ ClinicalEvidenceSummary synthesized: ${resourceId}`);
-  console.log(`  Drug: ${(drugRes as any).name}`);
-  console.log(`  Condition: ${condition}`);
-  console.log(`  Trials reviewed: ${matchingTrials.length}`);
-  console.log(`  Outcome edges considered: ${outcomeRefs.length}`);
-
-  await session.dispose();
-  closeReadline();
 }
 
 main().catch((e) => {

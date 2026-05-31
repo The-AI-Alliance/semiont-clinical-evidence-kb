@@ -62,136 +62,134 @@ async function main(): Promise<void> {
   const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
   const semiont = session.client;
 
-  const all = await semiont.browse.resources({ limit: 2000 });
-  const drugAResource = all.find((r) => {
-    const types: string[] = (r as any).entityTypes ?? [];
-    return types.includes('Drug') && (((r as any).name ?? '') as string).toLowerCase().includes(drugA.toLowerCase());
-  });
-  const drugBResource = all.find((r) => {
-    const types: string[] = (r as any).entityTypes ?? [];
-    return types.includes('Drug') && (((r as any).name ?? '') as string).toLowerCase().includes(drugB.toLowerCase());
-  });
-  if (!drugAResource || !drugBResource) {
-    console.error('Both drugs must be present as canonical Drug resources. Run canonicalize-drugs first.');
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-
-  const trials = all.filter((r) => {
-    const types: string[] = (r as any).entityTypes ?? [];
-    return types.includes('Trial');
-  });
-
-  const trialEdges = new Map<ResourceId, Set<string>>();
-  for (const t of trials) {
-    const tId = ridBrand(t['@id']);
-    const annos = await semiont.browse.annotations(tId);
-    const linked = new Set(
-      annos.flatMap((a: any) =>
-        (a.body ?? [])
-          .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
-          .map((b: any) => b.source as string),
-      ),
-    );
-    trialEdges.set(tId, linked);
-  }
-
-  const aId = drugAResource['@id'];
-  const bId = drugBResource['@id'];
-
-  const headToHead: ResourceId[] = [];
-  const onlyA: ResourceId[] = [];
-  const onlyB: ResourceId[] = [];
-  for (const [tId, linked] of trialEdges) {
-    const hasA = linked.has(aId);
-    const hasB = linked.has(bId);
-    if (hasA && hasB) headToHead.push(tId);
-    else if (hasA) onlyA.push(tId);
-    else if (hasB) onlyB.push(tId);
-  }
-
-  // Find shared comparators by intersecting non-A, non-B linked sources between onlyA and onlyB
-  const onlyALinks = new Set<string>();
-  const onlyBLinks = new Set<string>();
-  for (const tId of onlyA) for (const x of trialEdges.get(tId)!) if (x !== aId) onlyALinks.add(x);
-  for (const tId of onlyB) for (const x of trialEdges.get(tId)!) if (x !== bId) onlyBLinks.add(x);
-  const sharedComparators = [...onlyALinks].filter((x) => onlyBLinks.has(x));
-
-  const indirectAtrials = onlyA.filter((tId) => {
-    const linked = trialEdges.get(tId)!;
-    return sharedComparators.some((c) => linked.has(c));
-  });
-  const indirectBtrials = onlyB.filter((tId) => {
-    const linked = trialEdges.get(tId)!;
-    return sharedComparators.some((c) => linked.has(c));
-  });
-
-  console.log(`${headToHead.length} head-to-head, ${indirectAtrials.length} + ${indirectBtrials.length} indirect (${sharedComparators.length} shared comparators).`);
-
-  // Pick a seed: prefer head-to-head, else first onlyA trial
-  const seedTrialId = headToHead[0] ?? indirectAtrials[0] ?? onlyA[0];
-  if (!seedTrialId) {
-    console.error('No relevant trials found.');
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-  const seedAnnos = await semiont.browse.annotations(seedTrialId);
-  const seedAnno = seedAnnos[0];
-  if (!seedAnno) {
-    console.error('Seed trial has no annotations to gather from.');
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-
-  const gather = await semiont.gather.annotation(seedTrialId, seedAnno.id, { contextWindow: 2000 });
-  if (!('response' in gather)) {
-    console.error('gather.annotation did not return a Complete event');
-    await session.dispose();
-    closeReadline();
-    process.exit(1);
-  }
-  const context = gather.response as GatheredContext;
-
-  const trialList = (label: string, ids: ResourceId[]): string => {
-    if (ids.length === 0) return `### ${label}\n\n(none)\n`;
-    const names = ids.map((id) => {
-      const r = all.find((x) => x['@id'] === id);
-      return `- ${(r as any)?.name ?? id} (\`${id}\`)`;
+  try {
+    const all = await semiont.browse.resources({ limit: 2000 });
+    const drugAResource = all.find((r) => {
+      const types: string[] = (r as any).entityTypes ?? [];
+      return types.includes('Drug') && (((r as any).name ?? '') as string).toLowerCase().includes(drugA.toLowerCase());
     });
-    return `### ${label}\n\n${names.join('\n')}\n`;
-  };
+    const drugBResource = all.find((r) => {
+      const types: string[] = (r as any).entityTypes ?? [];
+      return types.includes('Drug') && (((r as any).name ?? '') as string).toLowerCase().includes(drugB.toLowerCase());
+    });
+    if (!drugAResource || !drugBResource) {
+      console.error('Both drugs must be present as canonical Drug resources. Run canonicalize-drugs first.');
+      closeReadline();
+      process.exit(1);
+    }
 
-  const prepend =
-    `# Drug Comparison: ${drugA} vs. ${drugB}${condition ? ` in ${condition}` : ''}\n\n` +
-    trialList('Head-to-head trials', headToHead) +
-    trialList(`Indirect — ${drugA} arm (vs. shared comparator)`, indirectAtrials) +
-    trialList(`Indirect — ${drugB} arm (vs. shared comparator)`, indirectBtrials) +
-    `### Shared comparators\n\n${sharedComparators.length > 0
-      ? sharedComparators.map((c) => `- ${(all.find((r) => r['@id'] === c) as any)?.name ?? c}`).join('\n')
-      : '(none)'}\n\n---\n\n`;
+    const trials = all.filter((r) => {
+      const types: string[] = (r as any).entityTypes ?? [];
+      return types.includes('Trial');
+    });
 
-  const yieldEvent = await semiont.yield.fromAnnotation(seedTrialId, seedAnno.id, {
-    title: `Drug Comparison: ${drugA} vs. ${drugB}`,
-    storageUri: `file://generated/comparison-${slugify(drugA)}-vs-${slugify(drugB)}.md`,
-    context,
-    entityTypes: ['DrugComparison', 'Aggregate'],
-    prompt: `${COMPARISON_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
-  });
+    const trialEdges = new Map<ResourceId, Set<string>>();
+    for (const t of trials) {
+      const tId = ridBrand(t['@id']);
+      const annos = await semiont.browse.annotations(tId);
+      const linked = new Set(
+        annos.flatMap((a: any) =>
+          (a.body ?? [])
+            .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
+            .map((b: any) => b.source as string),
+        ),
+      );
+      trialEdges.set(tId, linked);
+    }
 
-  if (yieldEvent.kind !== 'complete') {
-    console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
-    await session.dispose();
+    const aId = drugAResource['@id'];
+    const bId = drugBResource['@id'];
+
+    const headToHead: ResourceId[] = [];
+    const onlyA: ResourceId[] = [];
+    const onlyB: ResourceId[] = [];
+    for (const [tId, linked] of trialEdges) {
+      const hasA = linked.has(aId);
+      const hasB = linked.has(bId);
+      if (hasA && hasB) headToHead.push(tId);
+      else if (hasA) onlyA.push(tId);
+      else if (hasB) onlyB.push(tId);
+    }
+
+    // Find shared comparators by intersecting non-A, non-B linked sources between onlyA and onlyB
+    const onlyALinks = new Set<string>();
+    const onlyBLinks = new Set<string>();
+    for (const tId of onlyA) for (const x of trialEdges.get(tId)!) if (x !== aId) onlyALinks.add(x);
+    for (const tId of onlyB) for (const x of trialEdges.get(tId)!) if (x !== bId) onlyBLinks.add(x);
+    const sharedComparators = [...onlyALinks].filter((x) => onlyBLinks.has(x));
+
+    const indirectAtrials = onlyA.filter((tId) => {
+      const linked = trialEdges.get(tId)!;
+      return sharedComparators.some((c) => linked.has(c));
+    });
+    const indirectBtrials = onlyB.filter((tId) => {
+      const linked = trialEdges.get(tId)!;
+      return sharedComparators.some((c) => linked.has(c));
+    });
+
+    console.log(`${headToHead.length} head-to-head, ${indirectAtrials.length} + ${indirectBtrials.length} indirect (${sharedComparators.length} shared comparators).`);
+
+    // Pick a seed: prefer head-to-head, else first onlyA trial
+    const seedTrialId = headToHead[0] ?? indirectAtrials[0] ?? onlyA[0];
+    if (!seedTrialId) {
+      console.error('No relevant trials found.');
+      closeReadline();
+      process.exit(1);
+    }
+    const seedAnnos = await semiont.browse.annotations(seedTrialId);
+    const seedAnno = seedAnnos[0];
+    if (!seedAnno) {
+      console.error('Seed trial has no annotations to gather from.');
+      closeReadline();
+      process.exit(1);
+    }
+
+    const gather = await semiont.gather.annotation(seedTrialId, seedAnno.id, { contextWindow: 2000 });
+    if (!('response' in gather)) {
+      console.error('gather.annotation did not return a Complete event');
+      closeReadline();
+      process.exit(1);
+    }
+    const context = gather.response as GatheredContext;
+
+    const trialList = (label: string, ids: ResourceId[]): string => {
+      if (ids.length === 0) return `### ${label}\n\n(none)\n`;
+      const names = ids.map((id) => {
+        const r = all.find((x) => x['@id'] === id);
+        return `- ${(r as any)?.name ?? id} (\`${id}\`)`;
+      });
+      return `### ${label}\n\n${names.join('\n')}\n`;
+    };
+
+    const prepend =
+      `# Drug Comparison: ${drugA} vs. ${drugB}${condition ? ` in ${condition}` : ''}\n\n` +
+      trialList('Head-to-head trials', headToHead) +
+      trialList(`Indirect — ${drugA} arm (vs. shared comparator)`, indirectAtrials) +
+      trialList(`Indirect — ${drugB} arm (vs. shared comparator)`, indirectBtrials) +
+      `### Shared comparators\n\n${sharedComparators.length > 0
+        ? sharedComparators.map((c) => `- ${(all.find((r) => r['@id'] === c) as any)?.name ?? c}`).join('\n')
+        : '(none)'}\n\n---\n\n`;
+
+    const yieldEvent = await semiont.yield.fromAnnotation(seedTrialId, seedAnno.id, {
+      title: `Drug Comparison: ${drugA} vs. ${drugB}`,
+      storageUri: `file://generated/comparison-${slugify(drugA)}-vs-${slugify(drugB)}.md`,
+      context,
+      entityTypes: ['DrugComparison', 'Aggregate'],
+      prompt: `${COMPARISON_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
+    });
+
+    if (yieldEvent.kind !== 'complete') {
+      console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
+      closeReadline();
+      process.exit(1);
+    }
+    const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
+    console.log(`\n✓ DrugComparison synthesized: ${resourceId}`);
+
     closeReadline();
-    process.exit(1);
+  } finally {
+    await session.dispose();
   }
-  const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
-  console.log(`\n✓ DrugComparison synthesized: ${resourceId}`);
-
-  await session.dispose();
-  closeReadline();
 }
 
 main().catch((e) => {

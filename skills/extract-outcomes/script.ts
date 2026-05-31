@@ -61,96 +61,97 @@ async function main(): Promise<void> {
   const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
   const semiont = session.client;
 
-  const all = await semiont.browse.resources({ limit: 1000 });
-  const markdownResources = all.filter((r) => {
-    const mt = getMediaType(r);
-    return mt === 'text/markdown' || mt === 'text/plain';
-  });
-
-  const outcomes: OutcomeAnno[] = [];
-  for (const r of markdownResources) {
-    const rId = ridBrand(r['@id']);
-    const annotations = await semiont.browse.annotations(rId);
-    for (const ann of annotations) {
-      if (ann.motivation !== 'linking') continue;
-      const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
-      const tags = bodies
-        .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
-        .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
-      if (!tags.includes('Outcome')) continue;
-      const target = ann.target;
-      const selectors =
-        typeof target === 'string' || !target.selector
-          ? []
-          : Array.isArray(target.selector)
-            ? target.selector
-            : [target.selector];
-      let exact = '';
-      for (const s of selectors) {
-        if (s.type === 'TextQuoteSelector') { exact = s.exact; break; }
-      }
-      if (exact.length < MIN_OUTCOME_LENGTH) continue;
-      outcomes.push({ rId, annId: ann.id, text: exact });
-    }
-  }
-
-  if (outcomes.length === 0) {
-    console.log('No Outcome annotations found. Run skills/mark-medical-entities/script.ts first.');
-    await session.dispose();
-    closeInteractive();
-    return;
-  }
-
-  console.log(`Found ${outcomes.length} Outcome annotation(s) to extract.`);
-  const proceed = await confirm('Proceed?', true);
-  if (!proceed) {
-    await session.dispose();
-    closeInteractive();
-    return;
-  }
-
-  let synthesized = 0;
-  for (const o of outcomes) {
-    const gather = await semiont.gather.annotation(o.rId, o.annId, { contextWindow: 1500 });
-    if (!('response' in gather)) continue;
-    const context = gather.response as GatheredContext;
-
-    // Parse any effect sizes visible in the gathered text — embed as frontmatter.
-    const contextText = (context as any).text ?? (context as any).content ?? '';
-    const effects = parseEffectSizes(typeof contextText === 'string' ? contextText : '');
-    const frontmatter =
-      effects.length > 0
-        ? `---\nparsed-effects:\n${effects.map((e) => `  - ${summarizeEffect(e)}`).join('\n')}\n---\n\n`
-        : '';
-
-    const yieldEvent = await semiont.yield.fromAnnotation(o.rId, o.annId, {
-      title: `Outcome: ${o.text.slice(0, 80)}`,
-      storageUri: `file://generated/outcome-${slugify(o.text)}.md`,
-      context,
-      entityTypes: ['Outcome', 'Aggregate'],
-      prompt: frontmatter
-        ? `${OUTCOME_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${frontmatter}`
-        : OUTCOME_INSTRUCTIONS,
+  try {
+    const all = await semiont.browse.resources({ limit: 1000 });
+    const markdownResources = all.filter((r) => {
+      const mt = getMediaType(r);
+      return mt === 'text/markdown' || mt === 'text/plain';
     });
 
-    if (yieldEvent.kind !== 'complete') continue;
-    const newResourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
-    if (!newResourceId) continue;
+    const outcomes: OutcomeAnno[] = [];
+    for (const r of markdownResources) {
+      const rId = ridBrand(r['@id']);
+      const annotations = await semiont.browse.annotations(rId);
+      for (const ann of annotations) {
+        if (ann.motivation !== 'linking') continue;
+        const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
+        const tags = bodies
+          .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
+          .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
+        if (!tags.includes('Outcome')) continue;
+        const target = ann.target;
+        const selectors =
+          typeof target === 'string' || !target.selector
+            ? []
+            : Array.isArray(target.selector)
+              ? target.selector
+              : [target.selector];
+        let exact = '';
+        for (const s of selectors) {
+          if (s.type === 'TextQuoteSelector') { exact = s.exact; break; }
+        }
+        if (exact.length < MIN_OUTCOME_LENGTH) continue;
+        outcomes.push({ rId, annId: ann.id, text: exact });
+      }
+    }
 
-    await semiont.bind.body(o.rId, o.annId, [
-      {
-        op: 'add',
-        item: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
-      },
-    ]);
-    synthesized++;
-    const eff = effects.length > 0 ? ` (${effects.map(summarizeEffect).join('; ')})` : '';
-    console.log(`  + ${newResourceId} from "${o.text.slice(0, 60)}"${eff}`);
+    if (outcomes.length === 0) {
+      console.log('No Outcome annotations found. Run skills/mark-medical-entities/script.ts first.');
+      closeInteractive();
+      return;
+    }
+
+    console.log(`Found ${outcomes.length} Outcome annotation(s) to extract.`);
+    const proceed = await confirm('Proceed?', true);
+    if (!proceed) {
+      closeInteractive();
+      return;
+    }
+
+    let synthesized = 0;
+    for (const o of outcomes) {
+      const gather = await semiont.gather.annotation(o.rId, o.annId, { contextWindow: 1500 });
+      if (!('response' in gather)) continue;
+      const context = gather.response as GatheredContext;
+
+      // Parse any effect sizes visible in the gathered text — embed as frontmatter.
+      const contextText = (context as any).text ?? (context as any).content ?? '';
+      const effects = parseEffectSizes(typeof contextText === 'string' ? contextText : '');
+      const frontmatter =
+        effects.length > 0
+          ? `---\nparsed-effects:\n${effects.map((e) => `  - ${summarizeEffect(e)}`).join('\n')}\n---\n\n`
+          : '';
+
+      const yieldEvent = await semiont.yield.fromAnnotation(o.rId, o.annId, {
+        title: `Outcome: ${o.text.slice(0, 80)}`,
+        storageUri: `file://generated/outcome-${slugify(o.text)}.md`,
+        context,
+        entityTypes: ['Outcome', 'Aggregate'],
+        prompt: frontmatter
+          ? `${OUTCOME_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${frontmatter}`
+          : OUTCOME_INSTRUCTIONS,
+      });
+
+      if (yieldEvent.kind !== 'complete') continue;
+      const newResourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
+      if (!newResourceId) continue;
+
+      await semiont.bind.body(o.rId, o.annId, [
+        {
+          op: 'add',
+          item: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
+        },
+      ]);
+      synthesized++;
+      const eff = effects.length > 0 ? ` (${effects.map(summarizeEffect).join('; ')})` : '';
+      console.log(`  + ${newResourceId} from "${o.text.slice(0, 60)}"${eff}`);
+    }
+
+    console.log(`\nDone. Synthesized ${synthesized} Outcome resources.`);
+    closeInteractive();
+  } finally {
+    await session.dispose();
   }
-
-  console.log(`\nDone. Synthesized ${synthesized} Outcome resources.`);
-  await session.dispose();
-  closeInteractive();
 }
 
 main().catch((e) => {
