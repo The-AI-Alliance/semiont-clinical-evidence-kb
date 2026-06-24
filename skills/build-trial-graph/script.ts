@@ -129,13 +129,11 @@ async function main(): Promise<void> {
           if (!isCanonical) continue;
 
           // Add an edge by binding the Trial body to a description of the
-          // relationship. Resource-level relationship edges have no span, so
-          // we attach a FragmentSelector with an empty value to satisfy the
-          // SDK schema (selector is required).
+          // relationship. Resource-level relationship edges have no span — a
+          // whole-resource (source-only) target, no selector.
           await semiont.mark.annotation({
             target: {
               source: trialId,
-              selector: { type: 'FragmentSelector', value: '' },
             },
             motivation: 'linking',
             body: [
