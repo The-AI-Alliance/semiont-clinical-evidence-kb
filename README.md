@@ -1,7 +1,6 @@
 # Clinical Evidence Knowledge Base (Synthetic Documents)
 
 [![Lint](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb/actions/workflows/lint.yml?query=branch%3Amain)
-[![Build](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb/actions/workflows/build.yml?query=branch%3Amain)
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont-clinical-evidence-kb)](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb/blob/main/LICENSE)
 
 A collection of **synthetic but realistic clinical-evidence documents** — randomized controlled trials, observational studies, drug-safety reports, treatment guidelines — formatted for demonstration of medical-research annotation, evidence synthesis, and clinical-decision-support workflows with [Semiont](https://github.com/The-AI-Alliance/semiont).
