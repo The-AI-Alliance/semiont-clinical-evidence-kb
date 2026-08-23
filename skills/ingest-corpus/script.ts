@@ -11,7 +11,7 @@
  * Usage: tsx skills/ingest-corpus/script.ts [--interactive]
  */
 
-import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, type KbTarget } from '@semiont/sdk';
 import { discoverCorpus, readForUpload } from '../../src/files.js';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
 
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
   const email = process.env.SEMIONT_USER_EMAIL!;
   const password = process.env.SEMIONT_USER_PASSWORD!;
   const u = new URL(baseUrl);
-  const kb: KnowledgeBase = {
+  const kb: KbTarget = {
     id: 'clinical-evidence-ingest-corpus',
     label: 'clinical-evidence ingest-corpus',
     email,

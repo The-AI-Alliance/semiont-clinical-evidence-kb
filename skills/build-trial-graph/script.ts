@@ -6,7 +6,7 @@
  * Usage: tsx skills/build-trial-graph/script.ts [--interactive]
  */
 
-import { SemiontSession, InMemorySessionStorage, type KnowledgeBase, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, type KbTarget, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
 import { lookupTrialStub, formatReferenceSection } from '../../src/external-authorities.js';
 
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const email = process.env.SEMIONT_USER_EMAIL!;
   const password = process.env.SEMIONT_USER_PASSWORD!;
   const u = new URL(baseUrl);
-  const kb: KnowledgeBase = {
+  const kb: KbTarget = {
     id: 'clinical-evidence-build-trial-graph',
     label: 'clinical-evidence build-trial-graph',
     email,
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   const semiont = session.client;
 
   try {
-    const all = await semiont.browse.resources({ limit: 1000 });
+    const all = (await semiont.browse.resources({ limit: 1000 }).fresh()).resources;
 
     const studies = all.filter((r) => {
       const mt = getMediaType(r);
@@ -75,7 +75,7 @@ async function main(): Promise<void> {
       const studyName = (study as any).name ?? 'untitled';
 
       // Find an NCT in any annotation on this study
-      const annotations = await semiont.browse.annotations(studyId);
+      const annotations = await semiont.browse.annotations(studyId).fresh();
       const annTexts: string[] = [];
       for (const ann of annotations) {
         const target = ann.target;
