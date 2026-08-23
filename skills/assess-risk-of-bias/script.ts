@@ -58,7 +58,7 @@ async function main(): Promise<void> {
       .filter((r) => {
         const mt = getMediaType(r);
         const isText = mt === 'text/markdown' || mt === 'text/plain';
-        const types: string[] = (r as any).entityTypes ?? [];
+        const types: string[] = r.entityTypes ?? [];
         return isText && types.some((t) => studyTypeSet.has(t));
       })
       .map((r) => ridBrand(r['@id']));

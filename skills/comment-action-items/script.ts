@@ -9,6 +9,7 @@
 import { SemiontSession, InMemorySessionStorage, type KbTarget, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
 import { createdCount } from '../../src/mark-result.js';
+import { getMediaType } from '../../src/media-type.js';
 
 const COMMENT_INSTRUCTIONS =
   process.env.COMMENT_INSTRUCTIONS ??
@@ -18,14 +19,6 @@ anomalies, or unmet protocol commitments. For each, tag the span and write a bri
 explaining the concern (1–2 sentences). Don't flag passages that are simply describing standard
 study procedures.`;
 
-function getMediaType(r: any): string | undefined {
-  const reps = Array.isArray(r.representations)
-    ? r.representations
-    : r.representations
-      ? [r.representations]
-      : [];
-  return reps[0]?.mediaType;
-}
 
 async function main(): Promise<void> {
   const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
