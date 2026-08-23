@@ -179,15 +179,14 @@ async function main(): Promise<void> {
         const ref = lookupRxNormStub(key);
         const externalRefs = formatReferenceSection([ref]);
 
-        const yieldEvent = await semiont.yield.fromAnnotation(sample.rId, sample.annId, {
+        const yieldEvent = await semiont.yield.fromContext(context, {
           title: key,
           storageUri: `file://generated/drug-${slugify(key)}.md`,
-          context,
           entityTypes: ['Drug'],
           prompt: externalRefs
             ? `Include this references section at the end of the body verbatim:\n\n${externalRefs}`
             : undefined,
-        });
+          });
 
         if (yieldEvent.kind !== 'complete') {
           console.warn(`  unexpected yield event for "${sample.text}": ${yieldEvent.kind}`);
@@ -197,7 +196,7 @@ async function main(): Promise<void> {
           yieldEvent.data.result as { resourceId?: string } | undefined
         )?.resourceId;
         if (!newResourceId) {
-          console.warn(`  yield.fromAnnotation gave no resourceId for "${sample.text}"`);
+          console.warn(`  yield.fromContext gave no resourceId for "${sample.text}"`);
           continue;
         }
 

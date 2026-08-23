@@ -12,7 +12,7 @@ You are turning every Condition mention in the corpus into a canonical Condition
 
 1. Walks every `Condition`-tagged annotation in the corpus.
 2. Clusters annotations by surface text.
-3. For each cluster: gathers context, matches against existing Condition resources; if no confident match, synthesizes a new Condition resource via `yield.fromAnnotation` with body content plus an External References section pointing at ICD-10 and SNOMED-CT.
+3. For each cluster: gathers context, matches against existing Condition resources; if no confident match, synthesizes a new Condition resource via `yield.fromContext` with body content plus an External References section pointing at ICD-10 and SNOMED-CT.
 4. Binds every annotation in the cluster to the canonical Condition resource via `bind.body`.
 
 Same shape as `canonicalize-drugs` — only the entity type and external authorities differ.
@@ -21,7 +21,7 @@ Same shape as `canonicalize-drugs` — only the entity type and external authori
 
 - `browse.resources`, `browse.annotations`
 - `gather.annotation`, `match.search`
-- `yield.fromAnnotation`, `bind.body`
+- `yield.fromContext`, `bind.body`
 
 ## Tier-2 parameters
 

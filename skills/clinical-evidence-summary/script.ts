@@ -159,7 +159,7 @@ async function main(): Promise<void> {
       gathered.push(g.response as GatheredContext);
     }
 
-    // Use the first gathered context as the anchor for yield.fromAnnotation;
+    // Use the first gathered context as the anchor for yield.fromContext;
     // the others are referenced in the body via prepend.
     const seedRef = outcomeRefs[0];
     const seedGather = gathered[0];
@@ -182,16 +182,15 @@ async function main(): Promise<void> {
       matchingTrials.map((t) => `- ${(t as any).name} (\`${t['@id']}\`)`).join('\n') +
       `\n\n## Supplementary context\n\n${supplementaryContext}\n\n---\n\n`;
 
-    const yieldEvent = await semiont.yield.fromAnnotation(seedRef.rId, seedRef.annId, {
+    const yieldEvent = await semiont.yield.fromContext(seedGather, {
       title: `Clinical Evidence Summary: ${drug} for ${condition}`,
       storageUri: `file://generated/evidence-summary-${slugify(drug)}-${slugify(condition)}.md`,
-      context: seedGather,
       entityTypes: ['ClinicalEvidenceSummary', 'Aggregate'],
       prompt: `${SUMMARY_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
     });
 
     if (yieldEvent.kind !== 'complete') {
-      console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
+      console.error(`yield.fromContext did not complete: ${yieldEvent.kind}`);
       closeReadline();
       process.exit(1);
     }

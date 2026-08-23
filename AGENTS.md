@@ -23,7 +23,7 @@ If you're an AI assistant working in this repo, this file is your orientation. T
 | [`tag-pico`](skills/tag-pico/) | Classify clinical-question paragraphs by PICO category | `mark.assist` (linking + tagging via entityTypes) |
 | [`canonicalize-drugs`](skills/canonicalize-drugs/) | Promote Drug mentions to canonical Drug resources via RxNorm grounding | `+ match.search`, `+ yield.resource`, `+ bind.body` |
 | [`canonicalize-conditions`](skills/canonicalize-conditions/) | Promote Condition mentions to canonical Condition resources via ICD-10 / SNOMED-CT | same shape as canonicalize-drugs |
-| [`extract-outcomes`](skills/extract-outcomes/) | Tag each reported outcome; synthesize Outcome resources with structured fields | `+ yield.fromAnnotation` |
+| [`extract-outcomes`](skills/extract-outcomes/) | Tag each reported outcome; synthesize Outcome resources with structured fields | `+ yield.fromContext` |
 | [`assess-risk-of-bias`](skills/assess-risk-of-bias/) | Score each study against Cochrane RoB domains | `mark.assist` (assessing) |
 | [`build-trial-graph`](skills/build-trial-graph/) | Promote Trial mentions to Trial resources; encode Trial × Drug × Population × Outcome edges | `+ bind.body` |
 | [`comment-action-items`](skills/comment-action-items/) | Surface follow-up questions, missing data, methodological concerns | `mark.assist` (commenting) |

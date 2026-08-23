@@ -19,12 +19,12 @@ Given two Drug names:
    - **Indirect (shared comparator)**: Trials of A vs. C and B vs. C, where C is a common comparator (placebo, standard of care, third drug).
    - **Single-arm only**: Trials of only one of the drugs, with no shared comparator.
 4. `gather.annotation` over the most material outcomes from each category.
-5. `yield.fromAnnotation` synthesizes a `DrugComparison` aggregate: outcomes by category, effect-size differences, certainty assessment.
+5. `yield.fromContext` synthesizes a `DrugComparison` aggregate: outcomes by category, effect-size differences, certainty assessment.
 
 ## SDK verbs
 
 - `browse.resources`, `browse.annotations`
-- `gather.annotation`, `yield.fromAnnotation`
+- `gather.annotation`, `yield.fromContext`
 
 ## CLI args
 

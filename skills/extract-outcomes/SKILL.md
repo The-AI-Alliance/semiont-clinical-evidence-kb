@@ -12,7 +12,7 @@ You are turning every reported outcome in the corpus into a queryable Outcome re
 
 1. For every markdown resource in the corpus, browses `Outcome`-tagged annotations from `mark-medical-entities`.
 2. For each annotation, calls `gather.annotation` to pull surrounding context (effect-size language often lives outside the span itself — confidence intervals, sample sizes, follow-up).
-3. Calls `yield.fromAnnotation` to synthesize an Outcome resource with body fields filled by the LLM from the gathered context, plus a structured frontmatter block carrying the parsed effect size (via `src/effect-size.ts`).
+3. Calls `yield.fromContext` to synthesize an Outcome resource with body fields filled by the LLM from the gathered context, plus a structured frontmatter block carrying the parsed effect size (via `src/effect-size.ts`).
 4. Binds the source annotation to the new Outcome resource via `bind.body`.
 
 The Outcome resource is the unit of cross-trial synthesis — `clinical-evidence-summary` and `drug-comparison` walk these.
@@ -20,7 +20,7 @@ The Outcome resource is the unit of cross-trial synthesis — `clinical-evidence
 ## SDK verbs used
 
 - `browse.resources`, `browse.annotations`
-- `gather.annotation`, `yield.fromAnnotation`, `bind.body`
+- `gather.annotation`, `yield.fromContext`, `bind.body`
 
 ## Tier-2 parameters
 
