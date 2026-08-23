@@ -10,6 +10,7 @@
 import { SemiontSession, InMemorySessionStorage, type KbTarget, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
 import { createdCount } from '../../src/mark-result.js';
+import { getMediaType } from '../../src/media-type.js';
 
 const STUDY_TYPES = (process.env.STUDY_TYPES ?? 'Trial,ObservationalStudy,SystematicReview')
   .split(',')
@@ -28,14 +29,6 @@ prefixed by the domain code:
 Use a single tag value formatted "selection-low", "performance-high", etc. Only flag spans where
 the text actually addresses the domain — do not infer ratings without textual support.`;
 
-function getMediaType(r: any): string | undefined {
-  const reps = Array.isArray(r.representations)
-    ? r.representations
-    : r.representations
-      ? [r.representations]
-      : [];
-  return reps[0]?.mediaType;
-}
 
 async function main(): Promise<void> {
   const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
