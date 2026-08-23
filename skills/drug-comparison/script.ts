@@ -11,7 +11,7 @@
 import {
   SemiontSession,
   InMemorySessionStorage,
-  type KnowledgeBase,
+  type KbTarget,
   resourceId as ridBrand,
   type GatheredContext,
   type ResourceId,
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   const email = process.env.SEMIONT_USER_EMAIL!;
   const password = process.env.SEMIONT_USER_PASSWORD!;
   const u = new URL(baseUrl);
-  const kb: KnowledgeBase = {
+  const kb: KbTarget = {
     id: 'clinical-evidence-drug-comparison',
     label: 'clinical-evidence drug-comparison',
     email,
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   const semiont = session.client;
 
   try {
-    const all = await semiont.browse.resources({ limit: 2000 });
+    const all = (await semiont.browse.resources({ limit: 2000 }).fresh()).resources;
     const drugAResource = all.find((r) => {
       const types: string[] = (r as any).entityTypes ?? [];
       return types.includes('Drug') && (((r as any).name ?? '') as string).toLowerCase().includes(drugA.toLowerCase());
@@ -86,7 +86,7 @@ async function main(): Promise<void> {
     const trialEdges = new Map<ResourceId, Set<string>>();
     for (const t of trials) {
       const tId = ridBrand(t['@id']);
-      const annos = await semiont.browse.annotations(tId);
+      const annos = await semiont.browse.annotations(tId).fresh();
       const linked = new Set(
         annos.flatMap((a: any) =>
           (a.body ?? [])
@@ -136,7 +136,7 @@ async function main(): Promise<void> {
       closeReadline();
       process.exit(1);
     }
-    const seedAnnos = await semiont.browse.annotations(seedTrialId);
+    const seedAnnos = await semiont.browse.annotations(seedTrialId).fresh();
     const seedAnno = seedAnnos[0];
     if (!seedAnno) {
       console.error('Seed trial has no annotations to gather from.');

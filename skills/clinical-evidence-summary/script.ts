@@ -10,7 +10,7 @@
 import {
   SemiontSession,
   InMemorySessionStorage,
-  type KnowledgeBase,
+  type KbTarget,
   resourceId as ridBrand,
   type AnnotationId,
   type GatheredContext,
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   const email = process.env.SEMIONT_USER_EMAIL!;
   const password = process.env.SEMIONT_USER_PASSWORD!;
   const u = new URL(baseUrl);
-  const kb: KnowledgeBase = {
+  const kb: KbTarget = {
     id: 'clinical-evidence-clinical-evidence-summary',
     label: 'clinical-evidence clinical-evidence-summary',
     email,
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
   const semiont = session.client;
 
   try {
-    const all = await semiont.browse.resources({ limit: 2000 });
+    const all = (await semiont.browse.resources({ limit: 2000 }).fresh()).resources;
 
     // Find the canonical Drug resource matching the requested name
     const drugResources = all.filter((r) => {
@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     const matchingTrials: typeof trials = [];
     for (const t of trials) {
       const tId = ridBrand(t['@id']);
-      const annos = await semiont.browse.annotations(tId);
+      const annos = await semiont.browse.annotations(tId).fresh();
       const linkedSources = new Set(
         annos.flatMap((a: any) => {
           const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
@@ -123,7 +123,7 @@ async function main(): Promise<void> {
     // The Trial canonical's edges point to Outcomes too — gather those
     for (const t of matchingTrials) {
       const tId = ridBrand(t['@id']);
-      const annos = await semiont.browse.annotations(tId);
+      const annos = await semiont.browse.annotations(tId).fresh();
       for (const a of annos) {
         const aBodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
         const targets = aBodies.filter(
