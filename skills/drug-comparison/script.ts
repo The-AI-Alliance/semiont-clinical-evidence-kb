@@ -170,16 +170,15 @@ async function main(): Promise<void> {
         ? sharedComparators.map((c) => `- ${(all.find((r) => r['@id'] === c) as any)?.name ?? c}`).join('\n')
         : '(none)'}\n\n---\n\n`;
 
-    const yieldEvent = await semiont.yield.fromAnnotation(seedTrialId, seedAnno.id, {
+    const yieldEvent = await semiont.yield.fromContext(context, {
       title: `Drug Comparison: ${drugA} vs. ${drugB}`,
       storageUri: `file://generated/comparison-${slugify(drugA)}-vs-${slugify(drugB)}.md`,
-      context,
       entityTypes: ['DrugComparison', 'Aggregate'],
       prompt: `${COMPARISON_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
     });
 
     if (yieldEvent.kind !== 'complete') {
-      console.error(`yield.fromAnnotation did not complete: ${yieldEvent.kind}`);
+      console.error(`yield.fromContext did not complete: ${yieldEvent.kind}`);
       closeReadline();
       process.exit(1);
     }

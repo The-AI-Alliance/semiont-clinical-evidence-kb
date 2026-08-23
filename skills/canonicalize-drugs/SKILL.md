@@ -12,7 +12,7 @@ You are turning every Drug mention in the corpus into a canonical Drug resource 
 
 1. Walks every `Drug`-tagged annotation in the corpus.
 2. Clusters annotations by surface text.
-3. For each cluster: gathers context, matches against existing Drug resources (`match.search`); if no confident match, synthesizes a new Drug resource via `yield.fromAnnotation` with body content from the gathered context plus an External References section pointing at RxNorm.
+3. For each cluster: gathers context, matches against existing Drug resources (`match.search`); if no confident match, synthesizes a new Drug resource via `yield.fromContext` with body content from the gathered context plus an External References section pointing at RxNorm.
 4. Binds every annotation in the cluster to the canonical Drug resource via `bind.body`.
 
 After this skill runs, "metformin" / "Glucophage" / "metformin HCl" all collapse to one canonical Drug resource. `clinical-evidence-summary` and `drug-comparison` walk these canonical Drugs rather than re-matching strings.
@@ -22,7 +22,7 @@ After this skill runs, "metformin" / "Glucophage" / "metformin HCl" all collapse
 - `browse.resources`, `browse.annotations` — discover Drug-tagged annotations
 - `gather.annotation` — pull the annotation's neighborhood (graph traversal + content + view + vector lookup)
 - `match.search` — find candidate existing Drug resources via vector similarity + entity-type filter
-- `yield.fromAnnotation` — synthesize a new Drug resource grounded in the source paragraph
+- `yield.fromContext` — synthesize a new Drug resource grounded in the source paragraph
 - `bind.body` — attach the canonical Drug as a `SpecificResource` body part on every cluster annotation
 
 ## Tier-2 parameters

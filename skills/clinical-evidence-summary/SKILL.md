@@ -17,7 +17,7 @@ Given a query — a (Drug, Condition, Population) tuple — the skill:
 3. Browses RoB annotations on those trials.
 4. Browses commenting annotations from `comment-action-items` for outstanding concerns.
 5. `gather.annotation` over the most material outcome annotations to assemble a context window.
-6. `yield.fromAnnotation` synthesizes a `ClinicalEvidenceSummary` aggregate resource: ranked outcomes, weighted effect sizes, RoB context, outstanding concerns, citation list. Every claim links to its source.
+6. `yield.fromContext` synthesizes a `ClinicalEvidenceSummary` aggregate resource: ranked outcomes, weighted effect sizes, RoB context, outstanding concerns, citation list. Every claim links to its source.
 
 The result is a memo-shaped artifact — the clinical-evidence equivalent of a DoctrinalTrace. It's the kind of document a formulary committee, an FDA reviewer, or an evidence-based guideline panel asks for.
 
@@ -25,7 +25,7 @@ The result is a memo-shaped artifact — the clinical-evidence equivalent of a D
 
 - `browse.resources`, `browse.annotations`
 - `gather.annotation`
-- `yield.fromAnnotation`
+- `yield.fromContext`
 
 ## CLI args
 

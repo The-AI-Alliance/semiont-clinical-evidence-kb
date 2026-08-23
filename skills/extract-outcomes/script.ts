@@ -1,6 +1,6 @@
 /**
  * extract-outcomes — turn every Outcome-tagged annotation into a structured
- * Outcome resource via yield.fromAnnotation.
+ * Outcome resource via yield.fromContext.
  *
  * Usage: tsx skills/extract-outcomes/script.ts [--interactive]
  */
@@ -122,15 +122,14 @@ async function main(): Promise<void> {
           ? `---\nparsed-effects:\n${effects.map((e) => `  - ${summarizeEffect(e)}`).join('\n')}\n---\n\n`
           : '';
 
-      const yieldEvent = await semiont.yield.fromAnnotation(o.rId, o.annId, {
+      const yieldEvent = await semiont.yield.fromContext(context, {
         title: `Outcome: ${o.text.slice(0, 80)}`,
         storageUri: `file://generated/outcome-${slugify(o.text)}.md`,
-        context,
         entityTypes: ['Outcome', 'Aggregate'],
         prompt: frontmatter
           ? `${OUTCOME_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${frontmatter}`
           : OUTCOME_INSTRUCTIONS,
-      });
+        });
 
       if (yieldEvent.kind !== 'complete') continue;
       const newResourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;

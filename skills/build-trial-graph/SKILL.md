@@ -22,7 +22,7 @@ Two passes:
 ## SDK verbs
 
 - `browse.resources`, `browse.annotations`
-- `match.search`, `yield.fromAnnotation` (Trial canonicalization)
+- `match.search`, `yield.fromContext` (Trial canonicalization)
 - `bind.body` (edge wiring)
 
 ## Run it
