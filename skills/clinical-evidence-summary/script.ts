@@ -73,8 +73,8 @@ async function main(): Promise<void> {
 
     // Find the canonical Drug resource matching the requested name
     const drugResources = all.filter((r) => {
-      const types: string[] = (r as any).entityTypes ?? [];
-      const name = ((r as any).name ?? '').toString().toLowerCase();
+      const types: string[] = r.entityTypes ?? [];
+      const name = (r.name ?? '').toString().toLowerCase();
       return types.includes('Drug') && name.includes(drug.toLowerCase());
     });
     if (drugResources.length === 0) {
@@ -88,11 +88,11 @@ async function main(): Promise<void> {
       closeReadline();
       process.exit(1);
     }
-    console.log(`Using canonical Drug: ${(drugRes as any).name} (${drugRes['@id']})`);
+    console.log(`Using canonical Drug: ${drugRes.name} (${drugRes['@id']})`);
 
     // Find Trials whose graph edges include this Drug
     const trials = all.filter((r) => {
-      const types: string[] = (r as any).entityTypes ?? [];
+      const types: string[] = r.entityTypes ?? [];
       return types.includes('Trial');
     });
 
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
     }
 
     if (matchingTrials.length === 0) {
-      console.error(`No Trials with edges to "${(drugRes as any).name}". Run build-trial-graph first.`);
+      console.error(`No Trials with edges to "${drugRes.name}". Run build-trial-graph first.`);
       closeReadline();
       process.exit(1);
     }
@@ -126,19 +126,19 @@ async function main(): Promise<void> {
       const annos = await semiont.browse.annotations(tId).fresh();
       for (const a of annos) {
         const aBodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
-        const targets = aBodies.filter(
-          (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
-        );
-        for (const tgt of targets) {
-          const targetRes = all.find((r) => r['@id'] === (tgt as any).source);
-          const targetTypes: string[] = (targetRes as any)?.entityTypes ?? [];
+        // AnnotationBody is discriminated on `type`; the guard narrows it to
+        // SpecificResource so `.source` is typed, with no cast needed.
+        for (const tgt of aBodies) {
+          if (tgt.type !== 'SpecificResource' || tgt.purpose !== 'linking') continue;
+          const targetRes = all.find((r) => r['@id'] === tgt.source);
+          const targetTypes: string[] = targetRes?.entityTypes ?? [];
           if (!targetTypes.includes('Outcome')) continue;
           // gather.annotation on the Outcome resource — pull its source-anchoring annotation
           // We approximate: gather on this annotation (the edge), which carries the Trial's context.
           outcomeRefs.push({
             rId: tId,
             annId: a.id,
-            text: ((targetRes as any)?.name ?? '') as string,
+            text: (targetRes?.name ?? '') as string,
           });
         }
       }
@@ -169,17 +169,21 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
+    // Text lives on the focus, not the context root — the previous
+    // `(g as any).text` read a nonexistent field, so every entry mapped to ''
+    // and this section reached the prompt as bare `---` separators.
     const supplementaryContext = gathered
       .slice(1)
-      .map((g) => (g as any).text ?? (g as any).content ?? '')
-      .filter((t) => typeof t === 'string')
+      .map((g) => (g.focus.kind === 'annotation' ? g.focus.selected : undefined))
+      .map((s) => (s ? `${s.before ?? ''}${s.text}${s.after ?? ''}`.trim() : ''))
+      .filter((t) => t.length > 0)
       .join('\n\n---\n\n');
 
     const prepend =
       `# Clinical Evidence Summary\n\n` +
       `**Question:** ${drug} for ${condition}${population ? ` in ${population}` : ''}.\n\n` +
       `## Trials reviewed\n\n` +
-      matchingTrials.map((t) => `- ${(t as any).name} (\`${t['@id']}\`)`).join('\n') +
+      matchingTrials.map((t) => `- ${t.name} (\`${t['@id']}\`)`).join('\n') +
       `\n\n## Supplementary context\n\n${supplementaryContext}\n\n---\n\n`;
 
     const yieldEvent = await semiont.yield.fromContext(seedGather, {
@@ -196,7 +200,7 @@ async function main(): Promise<void> {
     }
     const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
     console.log(`\n✓ ClinicalEvidenceSummary synthesized: ${resourceId}`);
-    console.log(`  Drug: ${(drugRes as any).name}`);
+    console.log(`  Drug: ${drugRes.name}`);
     console.log(`  Condition: ${condition}`);
     console.log(`  Trials reviewed: ${matchingTrials.length}`);
     console.log(`  Outcome edges considered: ${outcomeRefs.length}`);

@@ -65,12 +65,12 @@ async function main(): Promise<void> {
   try {
     const all = (await semiont.browse.resources({ limit: 2000 }).fresh()).resources;
     const drugAResource = all.find((r) => {
-      const types: string[] = (r as any).entityTypes ?? [];
-      return types.includes('Drug') && (((r as any).name ?? '') as string).toLowerCase().includes(drugA.toLowerCase());
+      const types: string[] = r.entityTypes ?? [];
+      return types.includes('Drug') && ((r.name ?? '') as string).toLowerCase().includes(drugA.toLowerCase());
     });
     const drugBResource = all.find((r) => {
-      const types: string[] = (r as any).entityTypes ?? [];
-      return types.includes('Drug') && (((r as any).name ?? '') as string).toLowerCase().includes(drugB.toLowerCase());
+      const types: string[] = r.entityTypes ?? [];
+      return types.includes('Drug') && ((r.name ?? '') as string).toLowerCase().includes(drugB.toLowerCase());
     });
     if (!drugAResource || !drugBResource) {
       console.error('Both drugs must be present as canonical Drug resources. Run canonicalize-drugs first.');
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
     }
 
     const trials = all.filter((r) => {
-      const types: string[] = (r as any).entityTypes ?? [];
+      const types: string[] = r.entityTypes ?? [];
       return types.includes('Trial');
     });
 
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
       if (ids.length === 0) return `### ${label}\n\n(none)\n`;
       const names = ids.map((id) => {
         const r = all.find((x) => x['@id'] === id);
-        return `- ${(r as any)?.name ?? id} (\`${id}\`)`;
+        return `- ${r?.name ?? id} (\`${id}\`)`;
       });
       return `### ${label}\n\n${names.join('\n')}\n`;
     };
@@ -167,7 +167,7 @@ async function main(): Promise<void> {
       trialList(`Indirect — ${drugA} arm (vs. shared comparator)`, indirectAtrials) +
       trialList(`Indirect — ${drugB} arm (vs. shared comparator)`, indirectBtrials) +
       `### Shared comparators\n\n${sharedComparators.length > 0
-        ? sharedComparators.map((c) => `- ${(all.find((r) => r['@id'] === c) as any)?.name ?? c}`).join('\n')
+        ? sharedComparators.map((c) => `- ${all.find((r) => r['@id'] === c)?.name ?? c}`).join('\n')
         : '(none)'}\n\n---\n\n`;
 
     const yieldEvent = await semiont.yield.fromContext(context, {

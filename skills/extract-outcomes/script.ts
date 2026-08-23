@@ -115,8 +115,16 @@ async function main(): Promise<void> {
       const context = gather.response as GatheredContext;
 
       // Parse any effect sizes visible in the gathered text — embed as frontmatter.
-      const contextText = (context as any).text ?? (context as any).content ?? '';
-      const effects = parseEffectSizes(typeof contextText === 'string' ? contextText : '');
+      //
+      // The text lives on the FOCUS, not the context root: an annotation focus
+      // carries `selected.{before,text,after}`. The previous `(context as any).text`
+      // read a field that does not exist, so this parsed an empty string on every
+      // run and the frontmatter block was never emitted.
+      const selected = context.focus.kind === 'annotation' ? context.focus.selected : undefined;
+      const contextText = selected
+        ? `${selected.before ?? ''}${selected.text}${selected.after ?? ''}`
+        : '';
+      const effects = parseEffectSizes(contextText);
       const frontmatter =
         effects.length > 0
           ? `---\nparsed-effects:\n${effects.map((e) => `  - ${summarizeEffect(e)}`).join('\n')}\n---\n\n`

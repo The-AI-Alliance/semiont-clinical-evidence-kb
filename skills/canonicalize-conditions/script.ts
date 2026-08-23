@@ -16,6 +16,7 @@ import {
 } from '@semiont/sdk';
 import { confirm, isInteractive, close as closeInteractive } from '../../src/interactive.js';
 import { lookupConditionStub, formatReferenceSection } from '../../src/external-authorities.js';
+import { getMediaType } from '../../src/media-type.js';
 
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 const PRIMARY_AUTHORITY = (process.env.CONDITION_AUTHORITY === 'SNOMED-CT' ? 'SNOMED-CT' : 'ICD-10') as
@@ -24,14 +25,6 @@ const PRIMARY_AUTHORITY = (process.env.CONDITION_AUTHORITY === 'SNOMED-CT' ? 'SN
 const SECONDARY_AUTHORITY: 'ICD-10' | 'SNOMED-CT' =
   PRIMARY_AUTHORITY === 'ICD-10' ? 'SNOMED-CT' : 'ICD-10';
 
-function getMediaType(r: any): string | undefined {
-  const reps = Array.isArray(r.representations)
-    ? r.representations
-    : r.representations
-      ? [r.representations]
-      : [];
-  return reps[0]?.mediaType;
-}
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -79,11 +72,14 @@ async function main(): Promise<void> {
         if (ann.motivation !== 'linking') continue;
         const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
         const tags = bodies
-          .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
-          .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
+          .flatMap((b) =>
+            b.type === 'TextualBody' && b.purpose === 'tagging'
+              ? (Array.isArray(b.value) ? b.value : [b.value])
+              : [],
+          );
         if (!tags.includes('Condition')) continue;
         const alreadyBound = bodies.some(
-          (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
+          (b) => b.type === 'SpecificResource' && b.purpose === 'linking',
         );
         const target = ann.target;
         const selectors =

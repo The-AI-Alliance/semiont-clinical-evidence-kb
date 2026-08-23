@@ -50,7 +50,7 @@ async function main(): Promise<void> {
     const studies = all.filter((r) => {
       const mt = getMediaType(r);
       const isText = mt === 'text/markdown' || mt === 'text/plain';
-      const types: string[] = (r as any).entityTypes ?? [];
+      const types: string[] = r.entityTypes ?? [];
       return isText && (types.includes('Trial') || types.includes('ObservationalStudy'));
     });
 
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
 
     for (const study of studies) {
       const studyId = ridBrand(study['@id']);
-      const studyName = (study as any).name ?? 'untitled';
+      const studyName = study.name ?? 'untitled';
 
       // Find an NCT in any annotation on this study
       const annotations = await semiont.browse.annotations(studyId).fresh();
@@ -110,17 +110,17 @@ async function main(): Promise<void> {
       let edges = 0;
       for (const ann of annotations) {
         const allBodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
-        const bodies = allBodies.filter(
-          (b: any) => b.type === 'SpecificResource' && b.purpose === 'linking',
-        );
-        for (const b of bodies) {
-          const target = (b as any).source as string | undefined;
+        // AnnotationBody is discriminated on `type`; a control-flow guard narrows
+        // it to SpecificResource so `.source` is typed, with no cast needed.
+        for (const b of allBodies) {
+          if (b.type !== 'SpecificResource' || b.purpose !== 'linking') continue;
+          const target = b.source;
           if (!target || seen.has(target)) continue;
           seen.add(target);
 
           // Look up the target's entity types — only edge to canonical Drug/Condition/Outcome/Population
           const targetRes = all.find((r) => r['@id'] === target);
-          const targetTypes: string[] = (targetRes as any)?.entityTypes ?? [];
+          const targetTypes: string[] = targetRes?.entityTypes ?? [];
           const isCanonical =
             targetTypes.includes('Drug') ||
             targetTypes.includes('Condition') ||
