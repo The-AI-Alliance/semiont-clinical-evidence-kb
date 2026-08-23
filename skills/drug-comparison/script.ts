@@ -88,11 +88,15 @@ async function main(): Promise<void> {
       const tId = ridBrand(t['@id']);
       const annos = await semiont.browse.annotations(tId).fresh();
       const linked = new Set(
-        annos.flatMap((a: any) =>
-          (a.body ?? [])
-            .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
-            .map((b: any) => b.source as string),
-        ),
+        annos.flatMap((a) => {
+          // `body` is a single AnnotationBody OR an array of them. The previous
+          // `(a.body ?? [])` assumed an array, which would have thrown on any
+          // single-body annotation — invisible while `a` was typed `any`.
+          const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
+          return bodies.flatMap((b) =>
+            b.type === 'SpecificResource' && b.purpose === 'linking' ? [b.source] : [],
+          );
+        }),
       );
       trialEdges.set(tId, linked);
     }

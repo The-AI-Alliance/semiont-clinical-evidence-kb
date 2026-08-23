@@ -101,11 +101,10 @@ async function main(): Promise<void> {
       const tId = ridBrand(t['@id']);
       const annos = await semiont.browse.annotations(tId).fresh();
       const linkedSources = new Set(
-        annos.flatMap((a: any) => {
+        annos.flatMap((a) => {
           const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
           return bodies
-            .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
-            .map((b: any) => b.source as string);
+            .flatMap((b) => (b.type === 'SpecificResource' && b.purpose === 'linking' ? [b.source] : []));
         }),
       );
       if (linkedSources.has(drugRes['@id'])) matchingTrials.push(t);

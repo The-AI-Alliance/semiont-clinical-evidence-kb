@@ -16,6 +16,7 @@ import {
 } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
 import { parseEffectSizes, summarizeEffect } from '../../src/effect-size.js';
+import { getMediaType } from '../../src/media-type.js';
 
 const MIN_OUTCOME_LENGTH = Number(process.env.MIN_OUTCOME_LENGTH ?? 30);
 const OUTCOME_INSTRUCTIONS =
@@ -28,14 +29,6 @@ const OUTCOME_INSTRUCTIONS =
 - Direction: which arm benefited (intervention vs. comparator) and by how much
 Cite the source paragraph(s) the data came from.`;
 
-function getMediaType(r: any): string | undefined {
-  const reps = Array.isArray(r.representations)
-    ? r.representations
-    : r.representations
-      ? [r.representations]
-      : [];
-  return reps[0]?.mediaType;
-}
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 60);
@@ -76,8 +69,11 @@ async function main(): Promise<void> {
         if (ann.motivation !== 'linking') continue;
         const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
         const tags = bodies
-          .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
-          .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
+          .flatMap((b) =>
+            b.type === 'TextualBody' && b.purpose === 'tagging'
+              ? (Array.isArray(b.value) ? b.value : [b.value])
+              : [],
+          );
         if (!tags.includes('Outcome')) continue;
         const target = ann.target;
         const selectors =
