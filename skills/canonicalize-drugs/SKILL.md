@@ -12,7 +12,7 @@ You are turning every Drug mention in the corpus into a canonical Drug resource 
 
 1. Walks every `Drug`-tagged annotation in the corpus.
 2. Clusters annotations by surface text.
-3. For each cluster: gathers context, matches against existing Drug resources (`match.search`); if no confident match, synthesizes a new Drug resource via `yield.fromContext` with body content from the gathered context plus an External References section pointing at RxNorm.
+3. For each cluster: gathers context, matches against existing Drug resources (`match.search`); if no confident match, synthesizes a new Drug resource via `yield.delegate` with body content from the gathered context plus an External References section pointing at RxNorm.
 4. Binds every annotation in the cluster to the canonical Drug resource via `bind.body`.
 
 After this skill runs, "metformin" / "Glucophage" / "metformin HCl" all collapse to one canonical Drug resource. `clinical-evidence-summary` and `drug-comparison` walk these canonical Drugs rather than re-matching strings.
@@ -22,7 +22,7 @@ After this skill runs, "metformin" / "Glucophage" / "metformin HCl" all collapse
 - `browse.resources`, `browse.annotations` — discover Drug-tagged annotations
 - `gather.annotation` — pull the annotation's neighborhood (graph traversal + content + view + vector lookup)
 - `match.search` — find candidate existing Drug resources via vector similarity + entity-type filter
-- `yield.fromContext` — synthesize a new Drug resource grounded in the source paragraph
+- `yield.delegate` — synthesize a new Drug resource grounded in the source paragraph
 - `bind.body` — attach the canonical Drug as a `SpecificResource` body part on every cluster annotation
 
 ## Tier-2 parameters
@@ -42,11 +42,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/canonicalize-drugs/script.ts'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/canonicalize-drugs/script.ts'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 ## Output
 
