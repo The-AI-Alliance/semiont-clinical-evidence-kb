@@ -12,7 +12,7 @@ You are turning every Condition mention in the corpus into a canonical Condition
 
 1. Walks every `Condition`-tagged annotation in the corpus.
 2. Clusters annotations by surface text.
-3. For each cluster: gathers context, matches against existing Condition resources; if no confident match, synthesizes a new Condition resource via `yield.fromContext` with body content plus an External References section pointing at ICD-10 and SNOMED-CT.
+3. For each cluster: gathers context, matches against existing Condition resources; if no confident match, synthesizes a new Condition resource via `yield.delegate` with body content plus an External References section pointing at ICD-10 and SNOMED-CT.
 4. Binds every annotation in the cluster to the canonical Condition resource via `bind.body`.
 
 Same shape as `canonicalize-drugs` — only the entity type and external authorities differ.
@@ -21,7 +21,7 @@ Same shape as `canonicalize-drugs` — only the entity type and external authori
 
 - `browse.resources`, `browse.annotations`
 - `gather.annotation`, `match.search`
-- `yield.fromContext`, `bind.body`
+- `yield.delegate`, `bind.body`
 
 ## Tier-2 parameters
 
@@ -37,11 +37,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/canonicalize-conditions/script.ts'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/canonicalize-conditions/script.ts'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 ## Output
 

@@ -10,7 +10,7 @@
 import {
   SemiontSession,
   InMemorySessionStorage,
-  type KbTarget,
+  httpKb,
   resourceId as ridBrand,
   type AnnotationId,
   type GatheredContext,
@@ -55,17 +55,21 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
-  const email = process.env.SEMIONT_USER_EMAIL!;
-  const password = process.env.SEMIONT_USER_PASSWORD!;
-  const u = new URL(baseUrl);
-  const kb: KbTarget = {
-    id: 'clinical-evidence-clinical-evidence-summary',
-    label: 'clinical-evidence clinical-evidence-summary',
-    email,
-    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
-  };
-  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const gateway = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInDevice({
+    kb: httpKb({
+      id: 'clinical-evidence-clinical-evidence-summary',
+      label: 'clinical-evidence clinical-evidence-summary',
+      host: gateway.hostname,
+      port: Number(gateway.port) || 4000,
+      protocol: gateway.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
+  });
   const semiont = session.client;
 
   try {
@@ -158,7 +162,7 @@ async function main(): Promise<void> {
       gathered.push(g.response as GatheredContext);
     }
 
-    // Use the first gathered context as the anchor for yield.fromContext;
+    // Use the first gathered context as the anchor for yield.delegate;
     // the others are referenced in the body via prepend.
     const seedRef = outcomeRefs[0];
     const seedGather = gathered[0];
@@ -185,19 +189,20 @@ async function main(): Promise<void> {
       matchingTrials.map((t) => `- ${t.name} (\`${t['@id']}\`)`).join('\n') +
       `\n\n## Supplementary context\n\n${supplementaryContext}\n\n---\n\n`;
 
-    const yieldEvent = await semiont.yield.fromContext(seedGather, {
+    const yieldEvent = await semiont.yield.delegate({
+      context: seedGather,
       title: `Clinical Evidence Summary: ${drug} for ${condition}`,
       storageUri: `file://generated/evidence-summary-${slugify(drug)}-${slugify(condition)}.md`,
       entityTypes: ['ClinicalEvidenceSummary', 'Aggregate'],
       prompt: `${SUMMARY_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
     });
 
-    if (yieldEvent.kind !== 'complete') {
-      console.error(`yield.fromContext did not complete: ${yieldEvent.kind}`);
+    if (!yieldEvent.result || !('resourceId' in yieldEvent.result)) {
+      console.error(`the generation made no resource`);
       closeReadline();
       process.exit(1);
     }
-    const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
+    const resourceId = yieldEvent.result && 'resourceId' in yieldEvent.result ? yieldEvent.result.resourceId : undefined;
     console.log(`\n✓ ClinicalEvidenceSummary synthesized: ${resourceId}`);
     console.log(`  Drug: ${drugRes.name}`);
     console.log(`  Condition: ${condition}`);

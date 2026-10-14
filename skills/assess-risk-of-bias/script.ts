@@ -2,14 +2,13 @@
  * assess-risk-of-bias — Cochrane RoB-style assessment of each trial /
  * observational study / systematic review in the corpus.
  *
- * mark.assist with motivation 'assessing'.
+ * mark.delegate with motivation 'assessing'.
  *
  * Usage: tsx skills/assess-risk-of-bias/script.ts [--interactive]
  */
 
-import { SemiontSession, InMemorySessionStorage, type KbTarget, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, type ResourceId } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
-import { createdCount } from '../../src/mark-result.js';
 import { getMediaType } from '../../src/media-type.js';
 
 const STUDY_TYPES = (process.env.STUDY_TYPES ?? 'Trial,ObservationalStudy,SystematicReview')
@@ -31,17 +30,21 @@ the text actually addresses the domain — do not infer ratings without textual 
 
 
 async function main(): Promise<void> {
-  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
-  const email = process.env.SEMIONT_USER_EMAIL!;
-  const password = process.env.SEMIONT_USER_PASSWORD!;
-  const u = new URL(baseUrl);
-  const kb: KbTarget = {
-    id: 'clinical-evidence-assess-risk-of-bias',
-    label: 'clinical-evidence assess-risk-of-bias',
-    email,
-    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
-  };
-  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const gateway = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInDevice({
+    kb: httpKb({
+      id: 'clinical-evidence-assess-risk-of-bias',
+      label: 'clinical-evidence assess-risk-of-bias',
+      host: gateway.hostname,
+      port: Number(gateway.port) || 4000,
+      protocol: gateway.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
+  });
   const semiont = session.client;
 
   try {
@@ -54,7 +57,7 @@ async function main(): Promise<void> {
         const types: string[] = r.entityTypes ?? [];
         return isText && types.some((t) => studyTypeSet.has(t));
       })
-      .map((r) => ridBrand(r['@id']));
+      .map((r) => r['@id']);
 
     if (targets.length === 0) {
       console.log(
@@ -73,10 +76,11 @@ async function main(): Promise<void> {
 
     let total = 0;
     for (const rId of targets) {
-      const progress = await semiont.mark.assist(rId, 'assessing', {
+      const done = await semiont.mark.delegate(rId, {
+        motivation: 'assessing',
         instructions: ROB_INSTRUCTIONS,
       });
-      const n = createdCount(progress);
+      const n = done.result && 'persisted' in done.result ? done.result.persisted : 0;
       total += n;
       console.log(`  ${rId}: ${n} RoB annotations`);
     }

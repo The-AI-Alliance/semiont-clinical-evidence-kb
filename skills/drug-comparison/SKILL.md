@@ -19,12 +19,12 @@ Given two Drug names:
    - **Indirect (shared comparator)**: Trials of A vs. C and B vs. C, where C is a common comparator (placebo, standard of care, third drug).
    - **Single-arm only**: Trials of only one of the drugs, with no shared comparator.
 4. `gather.annotation` over the most material outcomes from each category.
-5. `yield.fromContext` synthesizes a `DrugComparison` aggregate: outcomes by category, effect-size differences, certainty assessment.
+5. `yield.delegate` synthesizes a `DrugComparison` aggregate: outcomes by category, effect-size differences, certainty assessment.
 
 ## SDK verbs
 
 - `browse.resources`, `browse.annotations`
-- `gather.annotation`, `yield.fromContext`
+- `gather.annotation`, `yield.delegate`
 
 ## CLI args
 
@@ -41,11 +41,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/drug-comparison/script.ts --drug-a metformin --drug-b sitagliptin --condition "type 2 diabetes"'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/drug-comparison/script.ts --drug-a metformin --drug-b sitagliptin --condition "type 2 diabetes"'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 ## Output
 

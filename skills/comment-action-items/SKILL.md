@@ -10,12 +10,12 @@ You are flagging passages that need follow-up — incomplete reporting, methodol
 
 ## What it does
 
-For every markdown / text resource, calls `mark.assist(rId, 'commenting', { instructions })`. The model identifies passages that warrant follow-up and tags each with a comment-purpose body explaining the concern.
+For every markdown / text resource, calls `mark.delegate(rId, 'commenting', { instructions })`. The model identifies passages that warrant follow-up and tags each with a comment-purpose body explaining the concern.
 
 ## SDK verbs
 
 - `browse.resources`
-- `mark.assist` — motivation `commenting`
+- `mark.delegate` — motivation `commenting`
 
 ## Tier-2 parameters
 
@@ -30,11 +30,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/comment-action-items/script.ts'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/comment-action-items/script.ts'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 ## Output
 
