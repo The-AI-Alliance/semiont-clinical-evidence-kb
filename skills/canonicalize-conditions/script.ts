@@ -10,6 +10,7 @@ import {
   InMemorySessionStorage,
   httpKb,
   getAnnotationExactText,
+  getBodySource,
   getEntityTypes,
   type AnnotationId,
   type ResourceId,
@@ -76,9 +77,7 @@ async function main(): Promise<void> {
         if (ann.motivation !== 'linking') continue;
         const tags = getEntityTypes(ann);
         if (!tags.includes('Condition')) continue;
-        const alreadyBound = bodies.some(
-          (b) => b.type === 'SpecificResource' && b.purpose === 'linking',
-        );
+        const alreadyBound = getBodySource(ann.body) !== null;
         const text = getAnnotationExactText(ann);
         condAnnotations.push({
           rId,
