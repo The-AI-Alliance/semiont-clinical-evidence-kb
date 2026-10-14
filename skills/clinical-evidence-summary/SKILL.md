@@ -17,7 +17,7 @@ Given a query — a (Drug, Condition, Population) tuple — the skill:
 3. Browses RoB annotations on those trials.
 4. Browses commenting annotations from `comment-action-items` for outstanding concerns.
 5. `gather.annotation` over the most material outcome annotations to assemble a context window.
-6. `yield.fromContext` synthesizes a `ClinicalEvidenceSummary` aggregate resource: ranked outcomes, weighted effect sizes, RoB context, outstanding concerns, citation list. Every claim links to its source.
+6. `yield.delegate` synthesizes a `ClinicalEvidenceSummary` aggregate resource: ranked outcomes, weighted effect sizes, RoB context, outstanding concerns, citation list. Every claim links to its source.
 
 The result is a memo-shaped artifact — the clinical-evidence equivalent of a DoctrinalTrace. It's the kind of document a formulary committee, an FDA reviewer, or an evidence-based guideline panel asks for.
 
@@ -25,7 +25,7 @@ The result is a memo-shaped artifact — the clinical-evidence equivalent of a D
 
 - `browse.resources`, `browse.annotations`
 - `gather.annotation`
-- `yield.fromContext`
+- `yield.delegate`
 
 ## CLI args
 
@@ -49,11 +49,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/clinical-evidence-summary/script.ts --drug metformin --condition "type 2 diabetes"'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/clinical-evidence-summary/script.ts --drug metformin --condition "type 2 diabetes"'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 ## Output
 

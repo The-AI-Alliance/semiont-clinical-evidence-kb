@@ -10,7 +10,7 @@ You are detecting named medical entities in the corpus. The output is one annota
 
 ## What it does
 
-For every markdown / text resource, calls `mark.assist(resourceId, 'linking', { entityTypes })`. The model proposes spans and assigns each to one of the requested types.
+For every markdown / text resource, calls `mark.delegate(resourceId, 'linking', { entityTypes })`. The model proposes spans and assigns each to one of the requested types.
 
 | Entity type | What it tags |
 |---|---|
@@ -25,12 +25,12 @@ For every markdown / text resource, calls `mark.assist(resourceId, 'linking', { 
 
 Override the type list per run with `ENTITY_TYPES` (comma-separated string).
 
-PDFs are skipped — `mark.assist` requires `text/markdown` or `text/plain`.
+PDFs are skipped — `mark.delegate` requires `text/markdown` or `text/plain`.
 
 ## SDK verbs
 
 - `browse.resources` — discover the markdown subset
-- `mark.assist` — one call per resource, motivation `linking`
+- `mark.delegate` — one call per resource, motivation `linking`
 
 ## Tier-3 interactive checkpoint
 
@@ -43,11 +43,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/mark-medical-entities/script.ts'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/mark-medical-entities/script.ts'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 Add `-e ENTITY_TYPES=Drug,Condition,Dose` to narrow the type list, or `-e SEMIONT_INTERACTIVE=1 -it` for the confirm prompt.
 

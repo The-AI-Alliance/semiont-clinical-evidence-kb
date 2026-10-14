@@ -11,7 +11,7 @@
 import {
   SemiontSession,
   InMemorySessionStorage,
-  type KbTarget,
+  httpKb,
   resourceId as ridBrand,
   type GatheredContext,
   type ResourceId,
@@ -49,17 +49,21 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
-  const email = process.env.SEMIONT_USER_EMAIL!;
-  const password = process.env.SEMIONT_USER_PASSWORD!;
-  const u = new URL(baseUrl);
-  const kb: KbTarget = {
-    id: 'clinical-evidence-drug-comparison',
-    label: 'clinical-evidence drug-comparison',
-    email,
-    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
-  };
-  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const gateway = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInDevice({
+    kb: httpKb({
+      id: 'clinical-evidence-drug-comparison',
+      label: 'clinical-evidence drug-comparison',
+      host: gateway.hostname,
+      port: Number(gateway.port) || 4000,
+      protocol: gateway.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
+  });
   const semiont = session.client;
 
   try {
@@ -174,19 +178,20 @@ async function main(): Promise<void> {
         ? sharedComparators.map((c) => `- ${all.find((r) => r['@id'] === c)?.name ?? c}`).join('\n')
         : '(none)'}\n\n---\n\n`;
 
-    const yieldEvent = await semiont.yield.fromContext(context, {
+    const yieldEvent = await semiont.yield.delegate({
+      context,
       title: `Drug Comparison: ${drugA} vs. ${drugB}`,
       storageUri: `file://generated/comparison-${slugify(drugA)}-vs-${slugify(drugB)}.md`,
       entityTypes: ['DrugComparison', 'Aggregate'],
       prompt: `${COMPARISON_INSTRUCTIONS}\n\nBegin the body with this preamble verbatim:\n\n${prepend}`,
     });
 
-    if (yieldEvent.kind !== 'complete') {
-      console.error(`yield.fromContext did not complete: ${yieldEvent.kind}`);
+    if (!yieldEvent.result || !('resourceId' in yieldEvent.result)) {
+      console.error(`the generation made no resource`);
       closeReadline();
       process.exit(1);
     }
-    const resourceId = (yieldEvent.data.result as { resourceId?: string } | undefined)?.resourceId;
+    const resourceId = yieldEvent.result && 'resourceId' in yieldEvent.result ? yieldEvent.result.resourceId : undefined;
     console.log(`\n✓ DrugComparison synthesized: ${resourceId}`);
 
     closeReadline();

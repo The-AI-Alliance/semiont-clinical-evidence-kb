@@ -12,7 +12,7 @@ You are turning every reported outcome in the corpus into a queryable Outcome re
 
 1. For every markdown resource in the corpus, browses `Outcome`-tagged annotations from `mark-medical-entities`.
 2. For each annotation, calls `gather.annotation` to pull surrounding context (effect-size language often lives outside the span itself — confidence intervals, sample sizes, follow-up).
-3. Calls `yield.fromContext` to synthesize an Outcome resource with body fields filled by the LLM from the gathered context, plus a structured frontmatter block carrying the parsed effect size (via `src/effect-size.ts`).
+3. Calls `yield.delegate` to synthesize an Outcome resource with body fields filled by the LLM from the gathered context, plus a structured frontmatter block carrying the parsed effect size (via `src/effect-size.ts`).
 4. Binds the source annotation to the new Outcome resource via `bind.body`.
 
 The Outcome resource is the unit of cross-trial synthesis — `clinical-evidence-summary` and `drug-comparison` walk these.
@@ -20,7 +20,7 @@ The Outcome resource is the unit of cross-trial synthesis — `clinical-evidence
 ## SDK verbs used
 
 - `browse.resources`, `browse.annotations`
-- `gather.annotation`, `yield.fromContext`, `bind.body`
+- `gather.annotation`, `yield.delegate`, `bind.body`
 
 ## Tier-2 parameters
 
@@ -36,11 +36,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/extract-outcomes/script.ts'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/extract-outcomes/script.ts'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 ## Output
 

@@ -10,7 +10,7 @@ You are tagging clinical text by PICO category — the canonical structured-ques
 
 ## What it does
 
-For every markdown / text resource, calls `mark.assist(resourceId, 'linking', { entityTypes: PICO_TYPES })`. The model identifies sentences or paragraphs that describe each PICO component and tags them.
+For every markdown / text resource, calls `mark.delegate(resourceId, 'linking', { entityTypes: PICO_TYPES })`. The model identifies sentences or paragraphs that describe each PICO component and tags them.
 
 | PICO category | Entity type | Example surface form |
 |---|---|---|
@@ -23,14 +23,14 @@ PICO classification is the clinical-evidence equivalent of IRAC tagging in legal
 
 ## Why entity-type vocabulary instead of a registered tag schema?
 
-Tag schemas registered upstream (`legal-irac`, `scientific-imrad`, `argument-toulmin`) are the architecturally correct fit for PICO; PICO would be a fourth registered schema, `clinical-pico`. Until that schema lands in `packages/ontology/src/tag-schemas.ts`, this skill uses entity-type vocabulary (`PICO_Patient`, `PICO_Intervention`, etc.) plus `mark.assist` linking to achieve the same query shape. When the upstream schema lands, this skill migrates to `mark.assist(rId, 'tagging', { schemaId: 'clinical-pico', categories: [...] })` and the entity-type variants retire.
+Tag schemas registered upstream (`legal-irac`, `scientific-imrad`, `argument-toulmin`) are the architecturally correct fit for PICO; PICO would be a fourth registered schema, `clinical-pico`. Until that schema lands in `packages/ontology/src/tag-schemas.ts`, this skill uses entity-type vocabulary (`PICO_Patient`, `PICO_Intervention`, etc.) plus `mark.delegate` linking to achieve the same query shape. When the upstream schema lands, this skill migrates to `mark.delegate(rId, 'tagging', { schemaId: 'clinical-pico', categories: [...] })` and the entity-type variants retire.
 
 See the AGENTS.md note "Why PICO is implemented as entity-type vocabulary" for the longer discussion.
 
 ## SDK verbs
 
 - `browse.resources` — discover the markdown subset
-- `mark.assist` — one call per resource, motivation `linking`
+- `mark.delegate` — one call per resource, motivation `linking`
 
 ## Run it
 
@@ -39,11 +39,11 @@ HOST_ADDR=$(container run --rm node:24-alpine sh -c "ip route | awk '/default/{p
 
 container run --rm -v "$(pwd):/work" -w /work \
   -e SEMIONT_API_URL=http://${HOST_ADDR}:4000 \
-  -e SEMIONT_USER_EMAIL=admin@example.com \
-  -e SEMIONT_USER_PASSWORD=<your-password> \
   node:24-alpine \
-  sh -c 'npm install --silent --no-fund @semiont/sdk tsx && npx tsx skills/tag-pico/script.ts'
+  sh -c 'npm ci --no-audit --no-fund && npx tsx skills/tag-pico/script.ts'
 ```
+
+The script prints an address: open it in a browser and approve the sign-in. [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways a script can sign in.
 
 ## Output
 
