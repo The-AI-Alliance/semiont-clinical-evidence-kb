@@ -3,14 +3,15 @@
  * AdverseEvent, Population, Intervention, Comparator spans across the
  * markdown corpus.
  *
- * mark.delegate with motivation 'linking'. Targets markdown resources only;
- * PDFs are silently skipped because mark.delegate requires text input.
+ * mark.assist with motivation 'linking'. Targets markdown resources only;
+ * PDFs are silently skipped because mark.assist requires text input.
  *
  * Usage: tsx skills/mark-medical-entities/script.ts [<resourceId>] [--interactive]
  */
 
-import { SemiontSession, InMemorySessionStorage, httpKb, entityType, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, type KbTarget, entityType, resourceId as ridBrand, type ResourceId } from '@semiont/sdk';
 import { confirm, close as closeInteractive } from '../../src/interactive.js';
+import { createdCount } from '../../src/mark-result.js';
 import { getMediaType } from '../../src/media-type.js';
 
 const ENTITY_TYPES = (
@@ -25,22 +26,18 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2).filter((a) => !a.startsWith('-'));
   const explicitResourceId = args[0];
 
-  const gateway = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const opened = await SemiontSession.signInDevice({
-    kb: httpKb({
-      id: 'clinical-evidence-mark-medical-entities',
-      label: 'clinical-evidence mark-medical-entities',
-      host: gateway.hostname,
-      port: Number(gateway.port) || 4000,
-      protocol: gateway.protocol === 'https:' ? 'https' : 'http',
-    }),
-    storage: new InMemorySessionStorage(),
-    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
-      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
-      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
-    },
-  });
-  const semiont = opened.session.client;
+  const baseUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
+  const email = process.env.SEMIONT_USER_EMAIL!;
+  const password = process.env.SEMIONT_USER_PASSWORD!;
+  const u = new URL(baseUrl);
+  const kb: KbTarget = {
+    id: 'clinical-evidence-mark-medical-entities',
+    label: 'clinical-evidence mark-medical-entities',
+    email,
+    endpoint: { kind: 'http', host: u.hostname, port: Number(u.port) || 4000, protocol: u.protocol.replace(':', '') as 'http' | 'https' },
+  };
+  const session = await SemiontSession.signInHttp({ kb, storage: new InMemorySessionStorage(), baseUrl, email, password });
+  const semiont = session.client;
 
   try {
     let targets: ResourceId[];
@@ -53,7 +50,7 @@ async function main(): Promise<void> {
           const mt = getMediaType(r);
           return mt === 'text/markdown' || mt === 'text/plain';
         })
-        .map((r) => r['@id']);
+        .map((r) => ridBrand(r['@id']));
     }
 
     if (targets.length === 0) {
@@ -63,7 +60,7 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `Will run mark.delegate (motivation: linking, ${ENTITY_TYPES.length} entity types) ` +
+      `Will run mark.assist (motivation: linking, ${ENTITY_TYPES.length} entity types) ` +
         `against ${targets.length} markdown resource(s).`,
     );
     console.log(`  Entity types: ${ENTITY_TYPES.join(', ')}`);
@@ -77,11 +74,10 @@ async function main(): Promise<void> {
 
     let totalCreated = 0;
     for (const rId of targets) {
-      const done = await semiont.mark.delegate(rId, {
-        motivation: 'linking',
+      const progress = await semiont.mark.assist(rId, 'linking', {
         entityTypes: ENTITY_TYPES,
       });
-      const n = done.result && 'persisted' in done.result ? done.result.persisted : 0;
+      const n = createdCount(progress);
       totalCreated += n;
       console.log(`  ${rId}: ${n} new annotations`);
     }
@@ -89,7 +85,7 @@ async function main(): Promise<void> {
     console.log(`\nDone. Created ${totalCreated} medical-entity annotations.`);
     closeInteractive();
   } finally {
-    opened.dispose();
+    await session.dispose();
   }
 }
 

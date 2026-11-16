@@ -14,19 +14,19 @@ If you're an AI assistant working in this repo, this file is your orientation. T
   - `src/external-authorities.ts` — adapters for RxNorm, ICD-10 / SNOMED-CT, and ClinicalTrials.gov stubs
   - `src/effect-size.ts` — parsing helpers for effect sizes and confidence intervals
   - `src/interactive.ts` — `confirm` / `pick` / `preview` helpers for tier-3 interactive checkpoints
-- **`skills/`** — eleven skills, each shipping a `SKILL.md` plus a `script.ts` that uses `@semiont/sdk` against the running stack.
+- **`skills/`** — eleven skills, each shipping a `SKILL.md` plus a `script.ts` that uses `@semiont/sdk` against the running backend.
 
 | Skill | What it does | New SDK verbs |
 |---|---|---|
 | [`ingest-corpus`](skills/ingest-corpus/) | Walk the repo, declare the KB's entity-type vocabulary, create one resource per file | `frame.addEntityTypes`, `yield.resource` |
-| [`mark-medical-entities`](skills/mark-medical-entities/) | Detect Drug, Condition, Dose, Outcome, AdverseEvent, Population, Intervention spans | `mark.delegate` (linking) |
-| [`tag-pico`](skills/tag-pico/) | Classify clinical-question paragraphs by PICO category | `mark.delegate` (linking + tagging via entityTypes) |
+| [`mark-medical-entities`](skills/mark-medical-entities/) | Detect Drug, Condition, Dose, Outcome, AdverseEvent, Population, Intervention spans | `mark.assist` (linking) |
+| [`tag-pico`](skills/tag-pico/) | Classify clinical-question paragraphs by PICO category | `mark.assist` (linking + tagging via entityTypes) |
 | [`canonicalize-drugs`](skills/canonicalize-drugs/) | Promote Drug mentions to canonical Drug resources via RxNorm grounding | `+ match.search`, `+ yield.resource`, `+ bind.body` |
 | [`canonicalize-conditions`](skills/canonicalize-conditions/) | Promote Condition mentions to canonical Condition resources via ICD-10 / SNOMED-CT | same shape as canonicalize-drugs |
-| [`extract-outcomes`](skills/extract-outcomes/) | Tag each reported outcome; synthesize Outcome resources with structured fields | `+ yield.delegate` |
-| [`assess-risk-of-bias`](skills/assess-risk-of-bias/) | Score each study against Cochrane RoB domains | `mark.delegate` (assessing) |
+| [`extract-outcomes`](skills/extract-outcomes/) | Tag each reported outcome; synthesize Outcome resources with structured fields | `+ yield.fromContext` |
+| [`assess-risk-of-bias`](skills/assess-risk-of-bias/) | Score each study against Cochrane RoB domains | `mark.assist` (assessing) |
 | [`build-trial-graph`](skills/build-trial-graph/) | Promote Trial mentions to Trial resources; encode Trial × Drug × Population × Outcome edges | `+ bind.body` |
-| [`comment-action-items`](skills/comment-action-items/) | Surface follow-up questions, missing data, methodological concerns | `mark.delegate` (commenting) |
+| [`comment-action-items`](skills/comment-action-items/) | Surface follow-up questions, missing data, methodological concerns | `mark.assist` (commenting) |
 | [`clinical-evidence-summary`](skills/clinical-evidence-summary/) | Synthesize an evidence aggregate per treatment-decision query | `+ gather.annotation`, full pipeline composition |
 | [`drug-comparison`](skills/drug-comparison/) | Multi-trial synthesis comparing two interventions | full pipeline composition |
 
@@ -76,17 +76,17 @@ The summary is the demonstration — a queryable artifact that shows *what the t
 
 ## Why PICO is implemented as entity-type vocabulary, not a registered tag schema
 
-Tag schemas registered in `packages/ontology/src/tag-schemas.ts` (legal-irac, scientific-imrad, argument-toulmin) are the right fit for PICO conceptually — Patient/Population, Intervention, Comparison, Outcome are exactly the structured-tagging shape IRAC and IMRAD are. But until a clinical-evidence schema is registered upstream, this KB uses entity-type vocabulary (`PICO_Patient`, `PICO_Intervention`, etc.) plus `mark.delegate` linking. The query shape is identical; the only difference is registration. When the upstream schema lands, `tag-pico` migrates to use `schemaId: 'clinical-pico'` and the entity-type variants retire.
+Tag schemas registered in `packages/ontology/src/tag-schemas.ts` (legal-irac, scientific-imrad, argument-toulmin) are the right fit for PICO conceptually — Patient/Population, Intervention, Comparison, Outcome are exactly the structured-tagging shape IRAC and IMRAD are. But until a clinical-evidence schema is registered upstream, this KB uses entity-type vocabulary (`PICO_Patient`, `PICO_Intervention`, etc.) plus `mark.assist` linking. The query shape is identical; the only difference is registration. When the upstream schema lands, `tag-pico` migrates to use `schemaId: 'clinical-pico'` and the entity-type variants retire.
 
 ## Working in containers — do not install npm packages on the host
 
-This template assumes a containerized workflow. The stack runs in containers (`semiont start` brings it up); the skills run in containers too. There is **no need** to install Node, the SDK, or any other tooling on the host machine.
+This template assumes a containerized workflow. The backend stack runs in containers (`semiont start` brings it up); the skills run in containers too. There is **no need** to install Node, the SDK, or any other tooling on the host machine.
 
 Each skill's `SKILL.md` shows a `container run` invocation that mounts the repo, installs `@semiont/sdk` and `tsx` *inside* a throwaway container, then runs the skill's `script.ts`. See [`skills/ingest-corpus/SKILL.md`](skills/ingest-corpus/SKILL.md) for the full networking discussion (the `HOST_ADDR` discovery probe).
 
-## Stack setup
+## Backend setup
 
-Before running any skill, the Semiont stack must be up. Two paths:
+Before running any skill, the Semiont backend stack must be up. Two paths:
 
 ### Local: `semiont start`
 
@@ -105,30 +105,24 @@ Flags: `--config anthropic` for cloud inference (requires `ANTHROPIC_API_KEY`), 
 
 ### Codespaces
 
-From your machine, `semiont start --runtime codespace --repo The-AI-Alliance/semiont-clinical-evidence-kb` creates or resumes the codespace, waits for the stack (which the codespace's own launcher runs), and forwards the KB (4000) and its Keycloak (8080), or the next free ports it prints. No account is created — make the first one; it prompts for the password:
-
-```bash
-semiont useradd --repo The-AI-Alliance/semiont-clinical-evidence-kb --email you@example.com
-```
-
-`semiont stop --repo The-AI-Alliance/semiont-clinical-evidence-kb` stops the codespace; add `--delete` to destroy it.
+Open the repo in a Codespace — `post-create.sh` pulls the stack's images, `post-start.sh` brings it up. No account is created — make the first admin with `docker compose -f .semiont/compose/backend.yml exec backend semiont-useradd --email you@example.com --generate-password --admin`. Forward the port: `gh codespace ports forward 4000:4000`.
 
 ## Parameterization and interactivity
 
-Skills are parameterized in three tiers — environment configuration (`SEMIONT_API_URL`; a skill signs in by the device grant, and [Signing in](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/SIGN-IN.md) has the other ways), skill-invocation parameters (per-skill env vars and CLI args; most accept `MATCH_THRESHOLD` for cluster-merge / candidate binding), and tier-3 interactive checkpoints (off by default; enable with `--interactive` or `SEMIONT_INTERACTIVE=1`). See each skill's `SKILL.md` for specifics.
+Skills are parameterized in three tiers — environment configuration (`SEMIONT_API_URL` / `SEMIONT_USER_EMAIL` / `SEMIONT_USER_PASSWORD`), skill-invocation parameters (per-skill env vars and CLI args; most accept `MATCH_THRESHOLD` for cluster-merge / candidate binding), and tier-3 interactive checkpoints (off by default; enable with `--interactive` or `SEMIONT_INTERACTIVE=1`). See each skill's `SKILL.md` for specifics.
 
 ## A note on PDFs
 
-`mark.delegate` operates on `text/markdown` and `text/plain`. PDFs are ingested by skill 1 as `application/pdf` resources — they're cataloged and visible in the KB but downstream `mark-*` skills skip them. The markdown subset of the corpus carries the analytical workload.
+`mark.assist` operates on `text/markdown` and `text/plain`. PDFs are ingested by skill 1 as `application/pdf` resources — they're cataloged and visible in the KB but downstream `mark-*` skills skip them. The markdown subset of the corpus carries the analytical workload.
 
 ## Background reading
 
 | Where | What |
 |---|---|
 | [`@semiont/sdk` README](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk) | The TypeScript surface — eight verbs (frame, yield, mark, match, bind, gather, browse, beckon) plus admin/auth/job. |
-| [SDK Usage docs](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/Usage.md) | Cache semantics, reactive model, state units, error handling. |
+| [SDK Usage docs](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk/docs) | Cache semantics, reactive model, state units, error handling. |
 | [Semiont protocol docs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol) | The eight-flow framing. |
-| [Semiont protocol skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/builder/skills) | Reference skill packs — `semiont-wiki`, `semiont-comment`, `semiont-highlight`, etc. |
+| [Semiont protocol skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills) | Reference skill packs — `semiont-wiki`, `semiont-comment`, `semiont-highlight`, etc. |
 | [RxNorm](https://www.nlm.nih.gov/research/umls/rxnorm/) | NIH drug-name normalization; the canonical authority `canonicalize-drugs` grounds against. |
 | [ICD-10](https://www.who.int/standards/classifications/classification-of-diseases) / [SNOMED-CT](https://www.snomed.org/) | Condition vocabularies. |
 | [ClinicalTrials.gov](https://clinicaltrials.gov/) | Trial registry, used as a stub for canonical Trial resources. |
